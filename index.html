@@ -1574,6 +1574,16 @@
 .vi-confirm-box h2{font-size:20px;color:#172554;margin:0 0 10px}.vi-confirm-box p{color:#475569;font-size:14px;line-height:1.6;margin:0 0 22px;overflow-wrap:anywhere}
 .vi-confirm-actions{display:flex;justify-content:flex-end;gap:10px}.vi-confirm-actions button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}
 .vi-confirm-cancel{background:#e2e8f0;color:#334155}.vi-confirm-accept{background:#2563eb;color:white}.vi-confirm-accept.danger{background:#b91c1c}
+
+/* PASO 61 · PRODUCTOS: reutiliza el estilo probado de Clientes */
+.vi-producto-summary{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 18px}
+.vi-producto-chip{padding:9px 13px;border:1px solid #dbe3ec;background:white;border-radius:10px;font-size:12px;color:#334155}
+.vi-producto-chip strong{font-size:15px;color:#172554}
+.vi-producto-stock{display:inline-block;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#dcfce7;color:#166534}
+.vi-producto-stock.bajo{background:#fef3c7;color:#92400e}
+.vi-producto-stock.agotado{background:#fee2e2;color:#991b1b}
+.vi-producto-fields select{display:block;width:100%;padding:11px;margin-top:5px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:white}
+.vi-producto-fields input[type=number]{font-variant-numeric:tabular-nums}
 </style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
@@ -1901,9 +1911,9 @@ async function iniciar(){
  }catch(err){mensajeBloqueo('No se pudo habilitar el panel: '+String(err?.message||err));}
 }
 function seleccionar(boton){document.querySelectorAll('.sidebar .menu-item').forEach(b=>b.classList.remove('active'));if(boton)boton.classList.add('active');}
-function aviso(){return '<div class="vi-test-note"><strong>Migración a Supabase.</strong> Clientes ya está conectado a PostgreSQL. Los demás módulos siguen pendientes. Google Apps Script y Sheets no se modifican.</div>';}
-function mostrarInicio(boton){seleccionar(boton);const subs=suscripciones.map(s=>s.estado).join(', ');$('contenidoPrincipal').innerHTML=`<section class="vi-home"><div class="vi-heading"><div><h1>Panel de inicio</h1><p>Resumen de ${esc(negocio.nombre)}</p></div></div>${aviso()}<div class="vi-tiles"><div class="vi-tile"><span class="vi-muted">Clientes</span><b id="inicioClientesContador">—</b><small class="vi-muted">Clientes activos en PostgreSQL</small></div><div class="vi-tile"><span class="vi-muted">Productos</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Ventas</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Pendientes</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div></div><div class="vi-module-placeholder" style="margin-top:20px"><h2>Mi negocio</h2><p><strong>Usuario:</strong> ${esc(perfil.nombre)} (${esc(perfil.id_usuario)})</p><p><strong>Negocio:</strong> ${esc(negocio.nombre)} (${esc(negocio.id_negocio)})</p><p><strong>Rol:</strong> ${esc(perfil.rol)}</p><p><strong>Suscripción:</strong> ${esc(subs)}</p><span class="vi-status">Sesión validada con Supabase Auth</span></div></section>`;actualizarContadorInicio();}
-function mostrarModulo(modulo,boton){if(modulo==='clientes'){mostrarClientes(boton);return;}seleccionar(boton);const nombre=nombres[modulo]||'Módulo';$('contenidoPrincipal').innerHTML=`<h1 class="page-title">${esc(nombre)}</h1><p class="page-subtitle">VICORA Comercial · ${esc(negocio.nombre)}</p>${aviso()}<div class="vi-module-placeholder"><h2>${esc(nombre)}</h2><p>La pantalla de ${esc(nombre.toLowerCase())} se conectará a PostgreSQL en una próxima etapa. Por seguridad, las operaciones están deshabilitadas durante esta prueba.</p><span class="vi-status">Pendiente de migración</span></div>`;}
+function aviso(){return '<div class="vi-test-note"><strong>Migración a Supabase.</strong> Clientes y Productos están conectados a PostgreSQL. Los demás módulos siguen pendientes. Google Apps Script y Sheets no se modifican.</div>';}
+function mostrarInicio(boton){seleccionar(boton);const subs=suscripciones.map(s=>s.estado).join(', ');$('contenidoPrincipal').innerHTML=`<section class="vi-home"><div class="vi-heading"><div><h1>Panel de inicio</h1><p>Resumen de ${esc(negocio.nombre)}</p></div></div>${aviso()}<div class="vi-tiles"><div class="vi-tile"><span class="vi-muted">Clientes</span><b id="inicioClientesContador">—</b><small class="vi-muted">Clientes activos en PostgreSQL</small></div><div class="vi-tile"><span class="vi-muted">Productos</span><b id="inicioProductosContador">—</b><small class="vi-muted">Productos activos en PostgreSQL</small></div><div class="vi-tile"><span class="vi-muted">Ventas</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Pendientes</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div></div><div class="vi-module-placeholder" style="margin-top:20px"><h2>Mi negocio</h2><p><strong>Usuario:</strong> ${esc(perfil.nombre)} (${esc(perfil.id_usuario)})</p><p><strong>Negocio:</strong> ${esc(negocio.nombre)} (${esc(negocio.id_negocio)})</p><p><strong>Rol:</strong> ${esc(perfil.rol)}</p><p><strong>Suscripción:</strong> ${esc(subs)}</p><span class="vi-status">Sesión validada con Supabase Auth</span></div></section>`;actualizarContadorInicio();actualizarContadorProductosInicio();}
+function mostrarModulo(modulo,boton){if(modulo==='clientes'){mostrarClientes(boton);return;}if(modulo==='productos'){mostrarProductos(boton);return;}seleccionar(boton);const nombre=nombres[modulo]||'Módulo';$('contenidoPrincipal').innerHTML=`<h1 class="page-title">${esc(nombre)}</h1><p class="page-subtitle">VICORA Comercial · ${esc(negocio.nombre)}</p>${aviso()}<div class="vi-module-placeholder"><h2>${esc(nombre)}</h2><p>La pantalla de ${esc(nombre.toLowerCase())} se conectará a PostgreSQL en una próxima etapa. Por seguridad, las operaciones están deshabilitadas durante esta prueba.</p><span class="vi-status">Pendiente de migración</span></div>`;}
 
 // Notificaciones modernas y reutilizables en VICORA.
 function notificarVicora(titulo, mensaje='', tipo='info'){
@@ -2020,6 +2030,137 @@ async function alternarCliente(id){
 async function actualizarContadorInicio(){
  const el=$('inicioClientesContador');if(!el||!db||!perfil)return;
  try{await clienteVerificarAcceso();const {count,error}=await db.from('clientes').select('id_cliente',{count:'exact',head:true}).eq('id_negocio',perfil.id_negocio).eq('estado','ACTIVO');if(error)throw error;if(el.isConnected)el.textContent=String(count??0);}catch(e){if(el.isConnected)el.textContent='—';}
+}
+
+
+// =========================================================
+// PASO 61 · PRODUCTOS (Supabase PostgreSQL + RLS)
+// =========================================================
+let productosActuales=[],productosBusqueda='',productosPagina=1;
+const PRODUCTOS_POR_PAGINA=15;
+const PRODUCTOS_UNIDADES=['Unidad','Kg','Gramo','Litro','Mililitro','Metro','Centímetro','Metro cuadrado','Metro cúbico','Paquete','Caja','Bolsa','Docena','Par','Rollo','Servicio','Otro'];
+
+// La verificación en pantalla complementa RLS: PostgreSQL decide los permisos.
+async function productoVerificarAcceso(){await clienteVerificarAcceso();}
+function productoMoneda(valor){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(valor||0));}
+function productoCantidad(valor){return new Intl.NumberFormat('es-AR',{maximumFractionDigits:3}).format(Number(valor||0));}
+function productoEstadoStock(p){
+ const stock=Number(p.stock||0),min=Number(p.stock_minimo||0);
+ if(stock<=0)return {clase:'agotado',texto:'Sin stock'};
+ if(stock<=min)return {clase:'bajo',texto:'Stock bajo'};
+ return {clase:'',texto:'Disponible'};
+}
+function productoPorId(id){return productosActuales.find(p=>p.id_producto===id);}
+async function obtenerProductosDB(){
+ await productoVerificarAcceso();
+ const todos=[];let desde=0;
+ while(true){
+  const {data,error}=await db.from('productos').select('id_negocio,id_producto,codigo,nombre,descripcion,categoria,unidad_medida,marca,unidad,precio_compra,precio_venta,stock,stock_minimo,fecha_alta,estado').eq('id_negocio',perfil.id_negocio).order('id_producto',{ascending:true}).range(desde,desde+999);
+  if(error)throw error;
+  if((data||[]).some(p=>p.id_negocio!==perfil.id_negocio))throw new Error('La consulta devolvió productos de otro negocio. Operación bloqueada.');
+  todos.push(...(data||[]));
+  if(!data||data.length<1000)break;
+  desde+=1000;
+ }
+ return todos;
+}
+async function mostrarProductos(boton){
+ seleccionar(boton);productosBusqueda='';productosPagina=1;
+ $('contenidoPrincipal').innerHTML=`<h1 class="page-title">Productos</h1><p class="page-subtitle">Catálogo, precios y control de stock · ${esc(negocio.nombre)}</p><div class="vi-client-toolbar"><input id="productosBuscar" type="search" placeholder="Buscar por código, nombre, marca, categoría..." aria-label="Buscar productos" oninput="productoBuscarTexto()"><button class="vi-client-btn" type="button" onclick="abrirProductoFormulario()">+ Nuevo producto</button><button class="vi-client-btn alt" type="button" onclick="recargarProductos()">Actualizar</button></div><div id="productosResumen"></div><div id="productosListado" class="vi-client-table-wrap"><p style="padding:25px">Cargando productos...</p></div><div id="productosModal"></div>`;
+ await recargarProductos();
+}
+async function recargarProductos(){
+ const lista=$('productosListado');if(!lista)return;
+ lista.innerHTML='<p style="padding:25px">Consultando productos en PostgreSQL...</p>';
+ try{productosActuales=await obtenerProductosDB();pintarTablaProductos();}
+ catch(e){lista.innerHTML=`<p class="vi-client-alert err" style="margin:15px">${esc('No se pudieron cargar los productos: '+String(e.message||e))}</p>`;notificarVicora('Error al consultar productos',String(e.message||e),'error');}
+}
+function productoBuscarTexto(){productosBusqueda=$('productosBuscar')?.value||'';productosPagina=1;pintarTablaProductos();}
+function productoCambiarPagina(n){productosPagina=n;pintarTablaProductos();}
+function pintarTablaProductos(){
+ const lista=$('productosListado');if(!lista)return;
+ const q=productosBusqueda.trim().toLocaleLowerCase('es');
+ const items=productosActuales.filter(p=>!q||[p.id_producto,p.codigo,p.nombre,p.descripcion,p.categoria,p.marca,p.unidad_medida].join(' ').toLocaleLowerCase('es').includes(q));
+ const activos=productosActuales.filter(p=>p.estado==='ACTIVO');
+ const bajo=activos.filter(p=>Number(p.stock||0)<=Number(p.stock_minimo||0));
+ const resumen=$('productosResumen');
+ if(resumen)resumen.innerHTML=`<div class="vi-producto-summary"><span class="vi-producto-chip">Total: <strong>${productosActuales.length}</strong></span><span class="vi-producto-chip">Activos: <strong>${activos.length}</strong></span><span class="vi-producto-chip">Stock bajo o agotado: <strong>${bajo.length}</strong></span></div>`;
+ const paginas=Math.max(1,Math.ceil(items.length/PRODUCTOS_POR_PAGINA));productosPagina=Math.min(productosPagina,paginas);
+ const visibles=items.slice((productosPagina-1)*PRODUCTOS_POR_PAGINA,productosPagina*PRODUCTOS_POR_PAGINA);
+ lista.innerHTML=`<div class="vi-client-count" style="padding:15px 15px 0">Mostrando ${visibles.length} de ${items.length} coincidencias</div>${visibles.length?`<table class="vi-client-table"><thead><tr><th>ID</th><th>Código</th><th>Producto</th><th>Categoría / Marca</th><th>Unidad</th><th>Compra</th><th>Venta</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${visibles.map(p=>{const st=productoEstadoStock(p);return `<tr><td>${esc(p.id_producto)}</td><td>${esc(p.codigo||'—')}</td><td><strong>${esc(p.nombre)}</strong></td><td>${esc(p.categoria||'—')}<br><small>${esc(p.marca||'')}</small></td><td>${esc(p.unidad_medida||'Unidad')}</td><td>${esc(productoMoneda(p.precio_compra))}</td><td>${esc(productoMoneda(p.precio_venta))}</td><td><strong>${esc(productoCantidad(p.stock))}</strong><br><span class="vi-producto-stock ${st.clase}">${st.texto}</span></td><td><span class="vi-client-status ${p.estado==='ACTIVO'?'':'off'}">${esc(p.estado)}</span></td><td><div class="vi-client-actions"><button type="button" data-producto-accion="ver" data-producto-id="${esc(p.id_producto)}">Ver</button><button type="button" data-producto-accion="editar" data-producto-id="${esc(p.id_producto)}">Editar</button><button type="button" data-producto-accion="estado" data-producto-id="${esc(p.id_producto)}">${p.estado==='ACTIVO'?'Desactivar':'Activar'}</button></div></td></tr>`}).join('')}</tbody></table>`:'<p style="padding:25px;color:#64748b">No hay productos que coincidan con la búsqueda.</p>'}${paginas>1?`<div class="vicora-ver-mas"><button type="button" class="vi-client-btn alt" onclick="productoCambiarPagina(${productosPagina-1})" ${productosPagina===1?'disabled':''}>Anterior</button><span>Página ${productosPagina} de ${paginas}</span><button type="button" class="vi-client-btn alt" onclick="productoCambiarPagina(${productosPagina+1})" ${productosPagina===paginas?'disabled':''}>Siguiente</button></div>`:''}`;
+ // Delegación: evita insertar IDs en expresiones JavaScript generadas.
+ lista.querySelectorAll('[data-producto-accion]').forEach(b=>b.addEventListener('click',()=>{
+  const id=b.dataset.productoId;
+  if(b.dataset.productoAccion==='ver')verFichaProducto(id);
+  if(b.dataset.productoAccion==='editar')abrirProductoFormulario(id);
+  if(b.dataset.productoAccion==='estado')alternarProducto(id);
+ }));
+}
+function cerrarProductoModal(){const m=$('productosModal');if(m)m.innerHTML='';}
+function abrirProductoFormulario(id=''){
+ const p=id?productoPorId(id):null;
+ if(id&&!p){notificarVicora('Producto no encontrado','Actualizá el listado e intentá nuevamente.','error');return;}
+ const campos=[['codigo','Código','text'],['nombre','Nombre *','text'],['descripcion','Descripción','text'],['categoria','Categoría','text'],['marca','Marca','text'],['unidad','Presentación / unidad (opcional)','text'],['precio_compra','Precio de compra','number'],['precio_venta','Precio de venta','number'],['stock','Stock actual','number'],['stock_minimo','Stock mínimo','number']];
+ const input=([k,label,t])=>`<label>${esc(label)}<input name="${k}" type="${t}" ${t==='number'?'step="0.001" min="0" inputmode="decimal"':'maxlength="250"'} ${k==='nombre'?'required':''} value="${esc(p?.[k]??(t==='number'?'0':''))}"></label>`;
+ const unidades=PRODUCTOS_UNIDADES.includes(p?.unidad_medida)?PRODUCTOS_UNIDADES:[...PRODUCTOS_UNIDADES,String(p.unidad_medida)];
+ $('productosModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="${id?'Editar':'Nuevo'} producto"><h2>${id?'Editar producto':'Nuevo producto'}</h2><form id="productoForm"><div class="vi-client-fields vi-producto-fields">${campos.slice(0,5).map(input).join('')}<label>Unidad de medida *<select name="unidad_medida" required>${unidades.map(u=>`<option value="${esc(u)}" ${u===(p?.unidad_medida||'Unidad')?'selected':''}>${esc(u)}</option>`).join('')}</select></label>${campos.slice(5).map(input).join('')}</div><div id="productoModalError" class="vi-client-alert err" hidden></div><div class="vi-client-footer"><button type="button" class="vi-client-btn alt" id="cancelarProductoBtn">Cancelar</button><button id="guardarProductoBtn" type="submit" class="vi-client-btn">Guardar</button></div></form></div></div>`;
+ $('cancelarProductoBtn').addEventListener('click',cerrarProductoModal);
+ $('productoForm').addEventListener('submit',e=>guardarProducto(e,id));
+ $('productoForm').querySelector('[name="nombre"]').focus();
+}
+async function generarProductoId(){
+ // Correlativo provisional: una secuencia atómica en PostgreSQL será necesaria antes del uso concurrente en producción.
+ const {data,error}=await db.from('productos').select('id_producto').eq('id_negocio',perfil.id_negocio).order('id_producto',{ascending:false}).limit(1);
+ if(error)throw error;
+ const max=Number((data?.[0]?.id_producto||'PRO-000000').match(/^PRO-(\d+)$/)?.[1]||0);
+ return 'PRO-'+String(max+1).padStart(6,'0');
+}
+async function guardarProducto(event,id){
+ event.preventDefault();const form=$('productoForm');if(!form)return;
+ const btn=$('guardarProductoBtn'),err=$('productoModalError');btn.disabled=true;err.hidden=true;
+ const fd=new FormData(form),v=k=>String(fd.get(k)||'').trim();
+ const num=k=>{const raw=v(k);if(raw==='')return 0;const n=Number(raw);if(!Number.isFinite(n)||n<0)throw new Error('Revisá el valor de '+k.replaceAll('_',' ')+'.');return n;};
+ try{
+  const datos={codigo:v('codigo'),nombre:v('nombre'),descripcion:v('descripcion'),categoria:v('categoria'),unidad_medida:v('unidad_medida'),marca:v('marca'),unidad:v('unidad'),precio_compra:num('precio_compra'),precio_venta:num('precio_venta'),stock:num('stock'),stock_minimo:num('stock_minimo')};
+  if(!datos.nombre)throw new Error('El nombre del producto es obligatorio.');
+  if(!datos.unidad_medida)throw new Error('Seleccioná la unidad de medida.');
+  await productoVerificarAcceso();
+  let resultado;
+  if(id)resultado=await db.from('productos').update(datos).eq('id_negocio',perfil.id_negocio).eq('id_producto',id).select('id_producto').single();
+  else resultado=await db.from('productos').insert({...datos,id_negocio:perfil.id_negocio,id_producto:await generarProductoId(),estado:'ACTIVO'}).select('id_producto').single();
+  if(resultado.error)throw resultado.error;
+  cerrarProductoModal();await recargarProductos();
+  notificarVicora(id?'Producto actualizado':'Producto registrado','Los datos se guardaron correctamente en PostgreSQL.','exito');
+ }catch(e){err.textContent='No se pudo guardar: '+String(e.message||e);err.hidden=false;notificarVicora('No se pudo guardar el producto',String(e.message||e),'error');}
+ finally{if(btn.isConnected)btn.disabled=false;}
+}
+function verFichaProducto(id){
+ const p=productoPorId(id);if(!p)return;
+ const campos=[['ID',p.id_producto],['Código',p.codigo],['Nombre',p.nombre],['Descripción',p.descripcion],['Categoría',p.categoria],['Marca',p.marca],['Unidad de medida',p.unidad_medida],['Presentación / unidad',p.unidad],['Precio de compra',productoMoneda(p.precio_compra)],['Precio de venta',productoMoneda(p.precio_venta)],['Stock actual',productoCantidad(p.stock)],['Stock mínimo',productoCantidad(p.stock_minimo)],['Fecha de alta',clienteFecha(p.fecha_alta)],['Estado',p.estado]];
+ $('productosModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="Ficha de producto"><h2>Ficha del producto</h2><div class="vi-client-details">${campos.map(([k,v])=>`<div><small>${esc(k)}</small><strong>${esc(v??'—')}</strong></div>`).join('')}</div><div class="vi-client-footer"><button class="vi-client-btn alt" type="button" id="cerrarFichaProducto">Cerrar</button><button class="vi-client-btn" type="button" id="editarFichaProducto">Editar</button></div></div></div>`;
+ $('cerrarFichaProducto').addEventListener('click',cerrarProductoModal);
+ $('editarFichaProducto').addEventListener('click',()=>abrirProductoFormulario(id));
+}
+async function alternarProducto(id){
+ const p=productoPorId(id);if(!p)return;
+ const estado=p.estado==='ACTIVO'?'INACTIVO':'ACTIVO';
+ const ok=await confirmarVicora(estado==='ACTIVO'?'Activar producto':'Desactivar producto',`¿Querés ${estado==='ACTIVO'?'activar':'desactivar'} el producto «${p.nombre}»?`,estado!=='ACTIVO');
+ if(!ok)return;
+ try{
+  await productoVerificarAcceso();
+  const {error}=await db.from('productos').update({estado}).eq('id_negocio',perfil.id_negocio).eq('id_producto',id).select('id_producto').single();
+  if(error)throw error;
+  await recargarProductos();notificarVicora(estado==='ACTIVO'?'Producto activado':'Producto desactivado','El estado se actualizó correctamente.','exito');
+ }catch(e){notificarVicora('No se pudo cambiar el estado',String(e.message||e),'error');}
+}
+async function actualizarContadorProductosInicio(){
+ const el=$('inicioProductosContador');if(!el||!db||!perfil)return;
+ try{
+  await productoVerificarAcceso();
+  const {count,error}=await db.from('productos').select('id_producto',{count:'exact',head:true}).eq('id_negocio',perfil.id_negocio).eq('estado','ACTIVO');
+  if(error)throw error;
+  if(el.isConnected)el.textContent=String(count??0);
+ }catch(e){if(el.isConnected)el.textContent='—';}
 }
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
