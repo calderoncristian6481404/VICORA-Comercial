@@ -1567,6 +1567,13 @@
 .vicora-toast.vicora-toast-out{opacity:0;transform:translateX(25px);transition:opacity .2s,transform .2s}
 .vicora-toast-close:hover{color:#0f172a}
 @media(prefers-reduced-motion:reduce){.vicora-toast,.vicora-toast.vicora-toast-out{animation:none;transition:none}}
+/* Confirmaciones modernas VICORA */
+.vi-confirm-overlay{position:fixed;inset:0;background:rgba(15,23,42,.58);backdrop-filter:blur(4px);z-index:4000;display:flex;align-items:center;justify-content:center;padding:18px}
+.vi-confirm-box{width:min(430px,100%);background:#fff;border-radius:18px;padding:26px;box-shadow:0 25px 75px rgba(15,23,42,.30);border:1px solid #e2e8f0}
+.vi-confirm-icon{width:48px;height:48px;border-radius:14px;background:#fef3c7;color:#92400e;display:flex;align-items:center;justify-content:center;font-size:25px;margin-bottom:14px}
+.vi-confirm-box h2{font-size:20px;color:#172554;margin:0 0 10px}.vi-confirm-box p{color:#475569;font-size:14px;line-height:1.6;margin:0 0 22px;overflow-wrap:anywhere}
+.vi-confirm-actions{display:flex;justify-content:flex-end;gap:10px}.vi-confirm-actions button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}
+.vi-confirm-cancel{background:#e2e8f0;color:#334155}.vi-confirm-accept{background:#2563eb;color:white}.vi-confirm-accept.danger{background:#b91c1c}
 </style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
@@ -1990,10 +1997,24 @@ function verFichaCliente(id){
  const campos=[['ID',c.id_cliente],['Nombre',c.nombre],['Apellido',c.apellido],['Documento',c.documento],['Teléfono',c.telefono],['Email',c.email],['Dirección',c.direccion],['Localidad',c.localidad],['Provincia',c.provincia],['Fecha de alta',clienteFecha(c.fecha_alta)],['Estado',c.estado]];
  $('clientesModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="Ficha de cliente"><h2>Ficha del cliente</h2><div class="vi-client-details">${campos.map(([k,v])=>`<div><small>${esc(k)}</small><strong>${esc(v||'—')}</strong></div>`).join('')}</div><div class="vi-client-footer"><button class="vi-client-btn alt" onclick="cerrarClienteModal()">Cerrar</button><button class="vi-client-btn" onclick="abrirClienteFormulario('${esc(id)}')">Editar</button></div></div></div>`;
 }
+function confirmarVicora(titulo,descripcion,esPeligroso=false){
+ return new Promise(resolve=>{
+  const overlay=document.createElement('div');overlay.className='vi-confirm-overlay';
+  overlay.innerHTML=`<div class="vi-confirm-box" role="dialog" aria-modal="true" aria-labelledby="viConfirmTitulo"><div class="vi-confirm-icon">?</div><h2 id="viConfirmTitulo"></h2><p id="viConfirmTexto"></p><div class="vi-confirm-actions"><button type="button" class="vi-confirm-cancel">Cancelar</button><button type="button" class="vi-confirm-accept ${esPeligroso?'danger':''}">Confirmar</button></div></div>`;
+  overlay.querySelector('#viConfirmTitulo').textContent=titulo;
+  overlay.querySelector('#viConfirmTexto').textContent=descripcion;
+  const cancelar=overlay.querySelector('.vi-confirm-cancel');const aceptar=overlay.querySelector('.vi-confirm-accept');
+  const terminar=valor=>{document.removeEventListener('keydown',tecla);overlay.remove();resolve(valor)};
+  const tecla=e=>{if(e.key==='Escape')terminar(false)};
+  cancelar.onclick=()=>terminar(false);aceptar.onclick=()=>terminar(true);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)terminar(false)});
+  document.body.append(overlay);document.addEventListener('keydown',tecla);cancelar.focus();
+ });
+}
 async function alternarCliente(id){
  const c=clientePorId(id);if(!c)return;
  const estado=c.estado==='ACTIVO'?'INACTIVO':'ACTIVO';
- if(!confirm(`¿Querés ${estado==='ACTIVO'?'activar':'desactivar'} a ${c.nombre} ${c.apellido}?`))return;
+ if(!await confirmarVicora(estado==='ACTIVO'?'Activar cliente':'Desactivar cliente',`¿Querés ${estado==='ACTIVO'?'activar':'desactivar'} a ${c.nombre} ${c.apellido}?`,estado!=='ACTIVO'))return;
  try{await clienteVerificarAcceso();const {data,error}=await db.from('clientes').update({estado}).eq('id_negocio',perfil.id_negocio).eq('id_cliente',id).select('id_cliente').single();if(error)throw error;await recargarClientes();notificarVicora(estado==='ACTIVO'?'Cliente activado':'Cliente desactivado','El estado se actualizó correctamente en PostgreSQL.','exito');}catch(e){clienteMensaje('No se pudo cambiar el estado: '+String(e.message||e),true);}
 }
 async function actualizarContadorInicio(){
