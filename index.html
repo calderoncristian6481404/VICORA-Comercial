@@ -1561,7 +1561,13 @@
 
 /* PASO 55 · CLIENTES */
 .vi-client-toolbar{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin:18px 0}.vi-client-toolbar input{flex:1;min-width:180px;max-width:430px;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px}.vi-client-btn{border:0;background:#2563eb;color:white;border-radius:9px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer}.vi-client-btn:disabled{opacity:.55;cursor:wait}.vi-client-btn.alt{background:#e2e8f0;color:#1e293b}.vi-client-btn.warn{background:#b91c1c}.vi-client-btn.ok{background:#15803d}.vi-client-table-wrap{background:white;border:1px solid #e2e8f0;border-radius:15px;overflow:auto}.vi-client-table{width:100%;border-collapse:collapse;min-width:850px;font-size:13px}.vi-client-table th{text-align:left;background:#f1f5f9;padding:13px;color:#475569}.vi-client-table td{padding:13px;border-top:1px solid #e2e8f0}.vi-client-table tr:hover td{background:#f8fafc}.vi-client-actions{display:flex;gap:6px;flex-wrap:wrap}.vi-client-actions button{border:1px solid #cbd5e1;background:white;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px}.vi-client-status{padding:4px 8px;border-radius:20px;background:#dcfce7;color:#166534;font-weight:700;font-size:11px}.vi-client-status.off{background:#fee2e2;color:#991b1b}.vi-client-count{font-size:13px;color:#64748b;margin-bottom:12px}.vi-client-alert{padding:12px 14px;border-radius:10px;margin:12px 0;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-size:13px}.vi-client-alert.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}.vi-client-overlay{position:fixed;inset:0;background:#0f172a99;z-index:3000;display:flex;align-items:center;justify-content:center;padding:18px}.vi-client-dialog{width:min(700px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:24px;box-shadow:0 25px 70px #0f172a44}.vi-client-dialog h2{margin:0 0 18px}.vi-client-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.vi-client-fields label{display:block;font-size:12px;font-weight:700;color:#334155}.vi-client-fields input{display:block;width:100%;padding:11px;margin-top:5px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}.vi-client-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.vi-client-details{display:grid;grid-template-columns:1fr 1fr;gap:12px}.vi-client-details div{padding:10px;background:#f8fafc;border-radius:8px;overflow-wrap:anywhere}.vi-client-details small{display:block;color:#64748b;margin-bottom:5px}@media(max-width:600px){.vi-client-fields,.vi-client-details{grid-template-columns:1fr}.vi-client-dialog{padding:17px}}
-</style></head><body><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
+
+/* PASO 56 - Notificaciones de acciones */
+.vicora-toast{position:relative;overflow:hidden}
+.vicora-toast.vicora-toast-out{opacity:0;transform:translateX(25px);transition:opacity .2s,transform .2s}
+.vicora-toast-close:hover{color:#0f172a}
+@media(prefers-reduced-motion:reduce){.vicora-toast,.vicora-toast.vicora-toast-out{animation:none;transition:none}}
+</style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
     <!-- ===================================================
@@ -1892,8 +1898,26 @@ function aviso(){return '<div class="vi-test-note"><strong>Migración a Supabase
 function mostrarInicio(boton){seleccionar(boton);const subs=suscripciones.map(s=>s.estado).join(', ');$('contenidoPrincipal').innerHTML=`<section class="vi-home"><div class="vi-heading"><div><h1>Panel de inicio</h1><p>Resumen de ${esc(negocio.nombre)}</p></div></div>${aviso()}<div class="vi-tiles"><div class="vi-tile"><span class="vi-muted">Clientes</span><b id="inicioClientesContador">—</b><small class="vi-muted">Clientes activos en PostgreSQL</small></div><div class="vi-tile"><span class="vi-muted">Productos</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Ventas</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Pendientes</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div></div><div class="vi-module-placeholder" style="margin-top:20px"><h2>Mi negocio</h2><p><strong>Usuario:</strong> ${esc(perfil.nombre)} (${esc(perfil.id_usuario)})</p><p><strong>Negocio:</strong> ${esc(negocio.nombre)} (${esc(negocio.id_negocio)})</p><p><strong>Rol:</strong> ${esc(perfil.rol)}</p><p><strong>Suscripción:</strong> ${esc(subs)}</p><span class="vi-status">Sesión validada con Supabase Auth</span></div></section>`;actualizarContadorInicio();}
 function mostrarModulo(modulo,boton){if(modulo==='clientes'){mostrarClientes(boton);return;}seleccionar(boton);const nombre=nombres[modulo]||'Módulo';$('contenidoPrincipal').innerHTML=`<h1 class="page-title">${esc(nombre)}</h1><p class="page-subtitle">VICORA Comercial · ${esc(negocio.nombre)}</p>${aviso()}<div class="vi-module-placeholder"><h2>${esc(nombre)}</h2><p>La pantalla de ${esc(nombre.toLowerCase())} se conectará a PostgreSQL en una próxima etapa. Por seguridad, las operaciones están deshabilitadas durante esta prueba.</p><span class="vi-status">Pendiente de migración</span></div>`;}
 
+// Notificaciones modernas y reutilizables en VICORA.
+function notificarVicora(titulo, mensaje='', tipo='info'){
+ const area=document.getElementById('vicoraToastArea');if(!area)return;
+ const tipos={exito:['✓','Éxito'],error:['!','Error'],advertencia:['⚠','Advertencia'],info:['i','Información']};
+ const clase=Object.prototype.hasOwnProperty.call(tipos,tipo)?tipo:'info';
+ const toast=document.createElement('div');toast.className='vicora-toast '+clase;toast.setAttribute('role',clase==='error'?'alert':'status');
+ const ico=document.createElement('span');ico.className='vicora-toast-icon';ico.textContent=tipos[clase][0];ico.setAttribute('aria-hidden','true');
+ const contenido=document.createElement('div');contenido.className='vicora-toast-content';
+ const encabezado=document.createElement('div');encabezado.className='vicora-toast-title';encabezado.textContent=String(titulo||tipos[clase][1]);
+ const detalle=document.createElement('div');detalle.className='vicora-toast-message';detalle.textContent=String(mensaje||'');
+ contenido.append(encabezado,detalle);
+ const cerrar=document.createElement('button');cerrar.type='button';cerrar.className='vicora-toast-close';cerrar.textContent='×';cerrar.setAttribute('aria-label','Cerrar notificación');
+ let temporizador;const quitar=()=>{clearTimeout(temporizador);if(!toast.isConnected)return;toast.classList.add('vicora-toast-out');setTimeout(()=>toast.remove(),220)};
+ cerrar.addEventListener('click',quitar);toast.append(ico,contenido,cerrar);area.prepend(toast);
+ while(area.children.length>3)area.lastElementChild.remove();
+ temporizador=setTimeout(quitar,clase==='error'?8000:5000);
+}
+
 // CLIENTES · Consultas y escrituras bajo la sesión real y RLS de Supabase.
-function clienteMensaje(texto,error=false){clientesAviso=texto;clientesError=error;const el=$('clientesMensaje');if(el){el.textContent=texto;el.hidden=!texto;el.className='vi-client-alert'+(error?' err':'');}}
+function clienteMensaje(texto,error=false){clientesAviso=texto;clientesError=error;const el=$('clientesMensaje');if(el){el.textContent='';el.hidden=true;}if(texto)notificarVicora(error?'Operación no completada':'Operación realizada',texto,error?'error':'exito');}
 function clienteFecha(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'});}
 function clienteBuscarTexto(){const input=$('clientesBuscar');clientesBusqueda=input?input.value:'';pintarTablaClientes();}
 async function clienteVerificarAcceso(){
@@ -1958,8 +1982,8 @@ async function guardarCliente(event,id){
    ({error}=await db.from('clientes').insert({...datos,id_negocio:perfil.id_negocio,id_cliente:nuevoId,estado:'ACTIVO'}).select('id_cliente').single());
   }
   if(error)throw error;
-  cerrarClienteModal();await recargarClientes();clienteMensaje(id?'Cliente actualizado correctamente.':'Cliente registrado correctamente.');
- }catch(e){err.textContent='No se pudo guardar: '+String(e.message||e);err.hidden=false;}finally{if(btn.isConnected)btn.disabled=false;}
+  cerrarClienteModal();await recargarClientes();notificarVicora(id?'Cliente actualizado':'Cliente registrado',id?'Los cambios se guardaron correctamente en PostgreSQL.':'El cliente se guardó correctamente en PostgreSQL.','exito');
+ }catch(e){err.textContent='No se pudo guardar: '+String(e.message||e);err.hidden=false;notificarVicora('No se pudo guardar el cliente',String(e.message||e),'error');}finally{if(btn.isConnected)btn.disabled=false;}
 }
 function verFichaCliente(id){
  const c=clientePorId(id);if(!c)return;
@@ -1970,7 +1994,7 @@ async function alternarCliente(id){
  const c=clientePorId(id);if(!c)return;
  const estado=c.estado==='ACTIVO'?'INACTIVO':'ACTIVO';
  if(!confirm(`¿Querés ${estado==='ACTIVO'?'activar':'desactivar'} a ${c.nombre} ${c.apellido}?`))return;
- try{await clienteVerificarAcceso();const {data,error}=await db.from('clientes').update({estado}).eq('id_negocio',perfil.id_negocio).eq('id_cliente',id).select('id_cliente').single();if(error)throw error;await recargarClientes();clienteMensaje(`Cliente ${estado==='ACTIVO'?'activado':'desactivado'} correctamente.`);}catch(e){clienteMensaje('No se pudo cambiar el estado: '+String(e.message||e),true);}
+ try{await clienteVerificarAcceso();const {data,error}=await db.from('clientes').update({estado}).eq('id_negocio',perfil.id_negocio).eq('id_cliente',id).select('id_cliente').single();if(error)throw error;await recargarClientes();notificarVicora(estado==='ACTIVO'?'Cliente activado':'Cliente desactivado','El estado se actualizó correctamente en PostgreSQL.','exito');}catch(e){clienteMensaje('No se pudo cambiar el estado: '+String(e.message||e),true);}
 }
 async function actualizarContadorInicio(){
  const el=$('inicioClientesContador');if(!el||!db||!perfil)return;
