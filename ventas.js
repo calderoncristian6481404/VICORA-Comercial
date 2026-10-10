@@ -32,4 +32,80 @@ function venCarritoPintar(){const el=$('venCarrito');if(!el)return;el.innerHTML=
 function venCobroPintar(){const el=$('venCobroCampos');if(!el)return;const m=ventasUI.modalidad;el.innerHTML=m==='CUENTA_CORRIENTE'?'<p class="ven-info">La venta quedará pendiente de cobro.</p>':`<label class="ven-label" style="margin-top:14px">Medio de pago</label><select class="ven-select" id="venMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select>${m==='PARCIAL'?'<label class="ven-label" style="margin-top:14px">Importe cobrado inicialmente ($)</label><input class="ven-input" type="number" id="venAnticipo" min="0.01" step="0.01" value="'+ventasUI.anticipo+'">':''}`;if($('venMedio')){$('venMedio').value=ventasUI.medio;$('venMedio').onchange=e=>ventasUI.medio=e.target.value;}if($('venAnticipo'))$('venAnticipo').oninput=e=>{ventasUI.anticipo=venN(e.target.value);venResumen();};}
 function venResumen(){const el=$('venTotales');if(!el)return;const total=venTotal(),cobrado=ventasUI.modalidad==='CONTADO'?total:ventasUI.modalidad==='PARCIAL'?ventasUI.anticipo:0;el.innerHTML=`<div class="ven-totals"><div><span>Subtotal</span><strong>${venDinero(venSubtotal())}</strong></div><div><span>Descuento</span><strong>− ${venDinero(ventasUI.descuento)}</strong></div><hr><div><strong>Total</strong><strong class="ven-total">${venDinero(total)}</strong></div><div><span>Cobro inicial</span><strong>${venDinero(cobrado)}</strong></div><div><span>Saldo pendiente</span><strong>${venDinero(Math.max(0,total-cobrado))}</strong></div></div>`;}
 async function venGuardar(){if(ventasUI.guardando)return;const cart=ventasUI.carrito.map(p=>({...p})),modalidad=ventasUI.modalidad,idCliente=ventasUI.cliente,descuento=ventasUI.descuento,anticipo=ventasUI.anticipo,medio=ventasUI.medio,total=venTotal();if(!cart.length)return venToast('Faltan productos','Agregá al menos un producto.','advertencia');if(total<=0||descuento<0||descuento>venSubtotal())return venToast('Importe inválido','Revisá el descuento y el total.','advertencia');if(modalidad!=='CONTADO'&&!idCliente)return venToast('Seleccioná un cliente','Cuenta corriente y pago parcial requieren cliente registrado.','advertencia');if(modalidad==='PARCIAL'&&!(anticipo>0&&anticipo<total))return venToast('Cobro parcial inválido','El anticipo debe ser mayor que cero y menor al total.','advertencia');if(cart.some(p=>p.cantidad<=0||p.cantidad>p.stock||!Number.isFinite(p.cantidad)))return venToast('Cantidad inválida','Revisá las cantidades y el stock.','advertencia');const ok=await confirmarVicora('Confirmar venta',`¿Registrar la venta por ${venDinero(total)}? Se descontará stock y se registrará el cobro correspondiente.`);if(!ok)return;ventasUI.guardando=true;const btn=$('venConfirmar');if(btn){btn.disabled=true;btn.textContent='Registrando venta...';}let idVenta=null;try{await venAcceso();const cliente=ventasUI.clientes.find(c=>c.id_cliente===idCliente);const nombreCliente=cliente?`${cliente.nombre||''} ${cliente.apellido||''}`.trim():'Consumidor final';const payload={id_negocio:perfil.id_negocio,id_cliente:idCliente||null,cliente:nombreCliente,descuento,modalidad_cobro:modalidad,medio_pago:modalidad==='CUENTA_CORRIENTE'?null:medio,cobrado_inicial:modalidad==='PARCIAL'?anticipo:0,estado:'BORRADOR'};const {data:venta,error:ev}=await db.from('ventas').insert(payload).select('id_venta').single();if(ev)throw ev;idVenta=venta.id_venta;const detalles=cart.map((p,i)=>({id_negocio:perfil.id_negocio,id_venta:idVenta,numero_linea:i+1,id_producto:p.id,cantidad:p.cantidad,precio_unitario:p.precio,subtotal:venN(p.cantidad*p.precio)}));const {error:ed}=await db.from('ventas_detalle').insert(detalles);if(ed)throw ed;const {data:conf,error:ec}=await db.rpc('confirmar_venta',{p_id_negocio:perfil.id_negocio,p_id_venta:idVenta});if(ec)throw ec;if(!conf?.ok)throw new Error('Supabase no confirmó la operación.');venCerrar();venToast('Venta confirmada',`${idVenta} · Total: ${venDinero(conf.total)} · Saldo: ${venDinero(conf.saldo_pendiente)}`,'exito');await venCargar();}catch(e){venToast('No se pudo confirmar',`${venError(e)}${idVenta?' · Borrador: '+idVenta:''}`,'error');if(idVenta){venCerrar();await venCargar();}}finally{ventasUI.guardando=false;if(btn?.isConnected){btn.disabled=false;btn.textContent='Confirmar venta';}}}
-async function venDetalle(id){try{await venAcceso();const [a,b,c,d]=await Promise.all([db.from('ventas').select('*').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).single(),db.from('ventas_detalle').select('numero_linea,id_producto,cantidad,precio_unitario,subtotal').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).order('numero_linea'),db.from('cobros_clientes').select('fecha_cobro,importe,medio_pago,origen,estado').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).order('fecha_cobro'),db.from('cuentas_cobrar').select('saldo_pendiente,estado,total_cobrado').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).maybeSingle()]);for(const r of [a,b,c,d])if(r.error)throw r.error;const v=a.data,det=b.data||[],cob=c.data||[],deuda=d.data;const modal=$('venModal');modal.innerHTML=`<div class="ven-modal"><div class="ven-dialog"><h2>Venta ${esc(v.id_venta)}</h2><div class="ven-row" style="justify-content:space-between"><span>${esc(venFecha(v.fecha_venta))} · ${esc(v.cliente)}</span>${venEstado(v.estado)}</div><div class="ven-card" style="margin-top:16px"><h3>Productos</h3><div class="ven-table"><table class="ven-items"><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${det.map(p=>{const prod=ventasUI.productos.find(x=>x.id_producto===p.id_producto);return `<tr><td>${esc(prod?.nombre||p.id_producto)}</td><td>${venNumero(p.cantidad)}</td><td>${venDinero(p.precio_unitario)}</td><td>${venDinero(p.subtotal)}</td></tr>`;}).join('')}</tbody></table></div><div class="ven-totals" style="margin-top:12px"><div><span>Descuento</span><strong>${venDinero(v.descuento)}</strong></div><div><strong>Total</strong><strong class="ven-total">${venDinero(v.total)}</strong></div><div><span>Saldo pendiente</span><strong>${venDinero(deuda?.saldo_pendiente||0)}</strong></div></div></div><div class="ven-card"><h3>Cobros registrados</h3>${cob.length?cob.map(p=>`<div class="ven-product"><span>${esc(venFecha(p.fecha_cobro))} · ${esc(p.medio_pago)} · ${esc(p.origen)}</span><strong>${venDinero(p.importe)}</strong></div>`).join(''):'<div class="ven-muted">Sin cobros registrados.</div>'}</div><div class="ven-modal-foot"><button class="vi-client-btn alt" id="venCerrarDetalle">Cerrar</button><button class="vi-client-btn" id="venImprimir">Imprimir</button></div></div></div>`;$('venCerrarDetalle').onclick=venCerrar;$('venImprimir').onclick=()=>{const dialog=modal.querySelector('.ven-dialog');const w=window.open('','_blank');if(!w){venToast('Impresión bloqueada','Permití las ventanas emergentes.','advertencia');return;}w.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Venta '+esc(id)+'</title><style>body{font-family:Arial;margin:25px}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #ddd}button{display:none}</style></head><body><h1>'+esc(negocio.nombre)+'</h1>'+dialog.innerHTML+'</body></html>');w.document.close();w.focus();w.print();};}catch(e){venToast('No se pudo abrir la venta',venError(e),'error');}}
+async function venDetalle(id){try{await venAcceso();const [a,b,c,d]=await Promise.all([db.from('ventas').select('*').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).single(),db.from('ventas_detalle').select('numero_linea,id_producto,cantidad,precio_unitario,subtotal').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).order('numero_linea'),db.from('cobros_clientes').select('fecha_cobro,importe,medio_pago,origen,estado').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).order('fecha_cobro'),db.from('cuentas_cobrar').select('saldo_pendiente,estado,total_cobrado').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).maybeSingle()]);for(const r of [a,b,c,d])if(r.error)throw r.error;const v=a.data,det=b.data||[],cob=c.data||[],deuda=d.data;const modal=$('venModal');modal.innerHTML=`<div class="ven-modal"><div class="ven-dialog"><h2>Venta ${esc(v.id_venta)}</h2><div class="ven-row" style="justify-content:space-between"><span>${esc(venFecha(v.fecha_venta))} · ${esc(v.cliente)}</span>${venEstado(v.estado)}</div><div class="ven-card" style="margin-top:16px"><h3>Productos</h3><div class="ven-table"><table class="ven-items"><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${det.map(p=>{const prod=ventasUI.productos.find(x=>x.id_producto===p.id_producto);return `<tr><td>${esc(prod?.nombre||p.id_producto)}</td><td>${venNumero(p.cantidad)}</td><td>${venDinero(p.precio_unitario)}</td><td>${venDinero(p.subtotal)}</td></tr>`;}).join('')}</tbody></table></div><div class="ven-totals" style="margin-top:12px"><div><span>Descuento</span><strong>${venDinero(v.descuento)}</strong></div><div><strong>Total</strong><strong class="ven-total">${venDinero(v.total)}</strong></div><div><span>Saldo pendiente</span><strong>${venDinero(deuda?.saldo_pendiente||0)}</strong></div></div></div><div class="ven-card"><h3>Cobros registrados</h3>${cob.length?cob.map(p=>`<div class="ven-product"><span>${esc(venFecha(p.fecha_cobro))} · ${esc(p.medio_pago)} · ${esc(p.origen)}</span><strong>${venDinero(p.importe)}</strong></div>`).join(''):'<div class="ven-muted">Sin cobros registrados.</div>'}</div><div class="ven-modal-foot"><button class="vi-client-btn alt" id="venCerrarDetalle">Cerrar</button><button class="vi-client-btn" id="venImprimir">Ticket 80 mm</button>${v.estado==='CONFIRMADA'?'<button class="vi-client-btn alt" id="venAnular">Anular venta</button>':''}</div></div></div>`;$('venCerrarDetalle').onclick=venCerrar;$('venImprimir').onclick=()=>venImprimir80(v,det,cob);if($('venAnular'))$('venAnular').onclick=()=>venAbrirAnulacion(v);;}catch(e){venToast('No se pudo abrir la venta',venError(e),'error');}}
+
+
+// ============================================================
+// VICORA · Ticket térmico 80 mm y anulación de ventas
+// ============================================================
+function venImprimir80(v,det,cob){
+  const w=window.open('','_blank');
+  if(!w){venToast('Impresión bloqueada','Permití ventanas emergentes para imprimir.','advertencia');return;}
+  const detalle=det.map(p=>{const prod=ventasUI.productos.find(x=>x.id_producto===p.id_producto);
+    return `<tr><td colspan="2" class="nombre">${esc(prod?.nombre||p.id_producto)}</td></tr><tr><td>${esc(venNumero(p.cantidad))} x ${esc(venDinero(p.precio_unitario))}</td><td class="derecha">${esc(venDinero(p.subtotal))}</td></tr>`;
+  }).join('');
+  const cobrado=(cob||[]).filter(c=>c.estado==='REGISTRADO').reduce((s,c)=>s+Number(c.importe||0),0);
+  const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Ticket ${esc(v.id_venta)}</title><style>
+  @page{size:80mm auto;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:white;color:black}
+  body{font:12px/1.35 Arial,sans-serif;width:80mm;padding:3mm 4mm;overflow-wrap:anywhere}
+  h1{font-size:17px;text-align:center;margin:0 0 6px}.centro{text-align:center}.derecha{text-align:right}
+  .linea{border-top:1px dashed #000;margin:8px 0}.nombre{padding-top:5px}table{width:100%;border-collapse:collapse;table-layout:fixed}td{vertical-align:top;padding:2px 0}td:last-child{width:42%}
+  .total{font-size:16px;font-weight:bold}.estado{font-size:16px;font-weight:bold;text-align:center;margin:8px 0}
+  @media screen{body{margin:12px auto;border:1px solid #ddd}.ayuda{margin:10px;text-align:center}}@media print{.ayuda{display:none}}
+  </style></head><body><h1>${esc(negocio?.nombre||'VICORA')}</h1><div class="centro">Comprobante de venta</div>
+  <div class="linea"></div><div>Venta: ${esc(v.id_venta)}</div><div>Fecha: ${esc(venFecha(v.fecha_venta))}</div>
+  <div>Cliente: ${esc(v.cliente||'Consumidor final')}</div><div class="linea"></div>
+  <table><tbody>${detalle}</tbody></table><div class="linea"></div>
+  <table><tbody><tr><td>Subtotal</td><td class="derecha">${esc(venDinero(v.subtotal))}</td></tr>
+  <tr><td>Descuento</td><td class="derecha">${esc(venDinero(v.descuento))}</td></tr>
+  <tr class="total"><td>TOTAL</td><td class="derecha">${esc(venDinero(v.total))}</td></tr>
+  <tr><td>Cobrado registrado</td><td class="derecha">${esc(venDinero(cobrado))}</td></tr>
+  <tr><td>Modalidad</td><td class="derecha">${esc(v.modalidad_cobro||'—')}</td></tr>
+  <tr><td>Medio inicial</td><td class="derecha">${esc(v.medio_pago||'—')}</td></tr></tbody></table>
+  ${v.estado==='ANULADA'?'<div class="estado">VENTA ANULADA</div>':''}
+  <div class="linea"></div><div class="centro">Gracias por su compra</div>
+  <div class="ayuda">Configurá el papel en 80 mm, escala 100% y márgenes ninguno.</div></body></html>`;
+  w.document.open();w.document.write(html);w.document.close();
+  w.addEventListener('load',()=>{w.focus();w.print();},{once:true});
+}
+
+function venAbrirAnulacion(v){
+  if(v.estado!=='CONFIRMADA')return venToast('No disponible','Solo se anulan ventas confirmadas.','advertencia');
+  const modal=$('venModal');if(!modal)return;
+  modal.innerHTML=`<div class="ven-modal"><div class="ven-dialog" style="width:min(540px,100%)">
+    <h2>Anular venta ${esc(v.id_venta)}</h2>
+    <p class="ven-info">Se restituirá el stock y se cancelará el saldo pendiente. La venta permanecerá en el historial.</p>
+    <label class="ven-label" for="venMotivo">Motivo de anulación (obligatorio)</label>
+    <textarea id="venMotivo" class="ven-input" rows="3" maxlength="500" placeholder="Escribí el motivo"></textarea>
+    <label class="ven-label" for="venDevolver" style="margin-top:15px">Dinero recibido del cliente</label>
+    <select id="venDevolver" class="ven-select"><option value="NO">No se devolvió: dejar pendiente</option><option value="SI">Sí, se devolvió todo lo cobrado</option></select>
+    <div id="venMedioWrap" style="display:none;margin-top:12px"><label class="ven-label" for="venMedioDevolucion">Medio de devolución</label>
+    <select id="venMedioDevolucion" class="ven-select"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select></div>
+    <div class="ven-modal-foot"><button class="vi-client-btn alt" id="venCancelarAnulacion">Cancelar</button>
+    <button class="vi-client-btn" id="venConfirmarAnulacion">Confirmar anulación</button></div></div></div>`;
+  $('venCancelarAnulacion').onclick=()=>venDetalle(v.id_venta);
+  $('venDevolver').onchange=()=>{$('venMedioWrap').style.display=$('venDevolver').value==='SI'?'block':'none';};
+  $('venConfirmarAnulacion').onclick=()=>venEjecutarAnulacion(v.id_venta);
+}
+
+async function venEjecutarAnulacion(id){
+  const motivo=($('venMotivo')?.value||'').trim();
+  const devolver=$('venDevolver')?.value==='SI';
+  const medio=devolver?$('venMedioDevolucion')?.value:null;
+  if(!motivo)return venToast('Motivo obligatorio','Escribí por qué se anula la venta.','advertencia');
+  const ok=await confirmarVicora('Confirmar anulación',`¿Anular definitivamente la venta ${id}? ${devolver?'Se registrará la devolución de todo lo cobrado.':'El dinero cobrado quedará pendiente de devolución.'}`);
+  if(!ok)return;
+  const boton=$('venConfirmarAnulacion');if(boton){boton.disabled=true;boton.textContent='Anulando...';}
+  try{
+    await venAcceso();
+    const {data,error}=await db.rpc('anular_venta',{
+      p_id_negocio:perfil.id_negocio,p_id_venta:id,p_motivo:motivo,
+      p_devolver_dinero:devolver,p_medio_devolucion:medio
+    });
+    if(error)throw error;
+    if(!data?.ok)throw new Error('La base de datos no confirmó la anulación.');
+    venCerrar();await venCargar();
+    venToast('Venta anulada',`${id} · Devolución pendiente: ${venDinero(data.devolucion_pendiente)}`,'exito');
+  }catch(e){venToast('No se pudo anular',venError(e),'error');}
+  finally{if(boton?.isConnected){boton.disabled=false;boton.textContent='Confirmar anulación';}}
+}
