@@ -2,11 +2,72 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VICORA Comercial</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VICORA Comercial | Prueba de acceso</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#172554,#1d4ed8);display:grid;place-items:center;padding:18px;color:#172554}
+    .card{background:#fff;width:min(100%,500px);border-radius:20px;padding:32px;box-shadow:0 20px 60px #0003}h1{margin:0 0 8px;font-size:27px}p{line-height:1.6;color:#475569}.status{padding:14px;border-radius:10px;background:#eff6ff;color:#1e40af;margin:20px 0}.error{background:#fef2f2;color:#991b1b}.ok{background:#ecfdf5;color:#047857}.details{border:1px solid #dbeafe;background:#f8fafc;padding:16px;border-radius:12px}.details p{margin:7px 0}.btn{display:block;text-align:center;width:100%;border:0;border-radius:10px;padding:13px;background:#2563eb;color:#fff;text-decoration:none;font-weight:bold;margin-top:16px;cursor:pointer}.btn.secondary{background:#e2e8f0;color:#172554}[hidden]{display:none!important}
+  </style>
 </head>
 <body>
-  <h1>VICORA Comercial</h1>
-  <p>Estamos preparando la nueva versión del sistema.</p>
+  <main class="card">
+    <h1>VICORA Comercial</h1>
+    <p>Prueba de inicio de sesión único con Supabase.</p>
+    <div id="status" class="status" role="status" aria-live="polite">Comprobando tu sesión...</div>
+    <section id="details" class="details" hidden>
+      <p><strong>Usuario:</strong> <span id="user"></span></p>
+      <p><strong>Negocio:</strong> <span id="business"></span></p>
+      <p><strong>Rol:</strong> <span id="role"></span></p>
+      <p><strong>Suscripción:</strong> <span id="subscription"></span></p>
+    </section>
+    <a class="btn secondary" href="https://calderoncristian6481404.github.io/vicora-acceso/">Volver a VICORA Acceso</a>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    'use strict';
+    const ACCESS_URL='https://calderoncristian6481404.github.io/vicora-acceso/';
+    const SUPABASE_URL='https://nxdimgzcsjnjjdfdpatp.supabase.co';
+    const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
+    const $=id=>document.getElementById(id);
+    const status=(text,error=false)=>{$('status').textContent=text;$('status').className='status '+(error?'error':'ok');};
+    async function iniciar(){
+      try{
+        if(!window.supabase?.createClient)throw new Error('No se pudo cargar Supabase. Revisá la conexión a Internet.');
+        // Ambos proyectos GitHub Pages usan el mismo origen y el mismo proyecto Supabase.
+        // La clave de almacenamiento predeterminada es idéntica en las dos páginas.
+        const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY,{
+          auth:{detectSessionInUrl:false,autoRefreshToken:true,persistSession:true,flowType:'pkce'}
+        });
+        const {data:{session},error:sessionError}=await client.auth.getSession();
+        if(sessionError)throw sessionError;
+        if(!session){status('No hay una sesión iniciada. Volvé a VICORA Acceso para ingresar.',true);return;}
+        // getUser consulta al servidor de autenticación: no confiamos solo en los datos locales.
+        const {data:{user},error:userError}=await client.auth.getUser();
+        if(userError||!user){status('Tu sesión no es válida. Volvé a VICORA Acceso.',true);return;}
+        const {data:profiles,error:profileError}=await client.from('usuarios')
+          .select('id_usuario,id_negocio,nombre,rol,estado,auth_user_id');
+        if(profileError)throw new Error('Error consultando usuario: '+profileError.message);
+        if(!profiles||profiles.length!==1||profiles[0].auth_user_id!==user.id||profiles[0].estado!=='ACTIVO')
+          throw new Error('No se encontró un perfil activo y exclusivo para esta cuenta.');
+        const profile=profiles[0];
+        const {data:businesses,error:businessError}=await client.from('negocios').select('id_negocio,nombre,estado');
+        if(businessError)throw new Error('Error consultando negocio: '+businessError.message);
+        if(!businesses||businesses.length!==1||businesses[0].id_negocio!==profile.id_negocio)
+          throw new Error('No se pudo comprobar un único negocio autorizado.');
+        const {data:subscriptions,error:subscriptionError}=await client.from('suscripciones')
+          .select('id_negocio,id_sistema,estado,proximo_vencimiento');
+        if(subscriptionError)throw new Error('Error consultando suscripciones: '+subscriptionError.message);
+        if((subscriptions||[]).some(s=>s.id_negocio!==profile.id_negocio))
+          throw new Error('La consulta devolvió suscripciones de otro negocio.');
+        $('user').textContent=profile.nombre+' ('+profile.id_usuario+')';
+        $('business').textContent=businesses[0].nombre+' ('+profile.id_negocio+')';
+        $('role').textContent=profile.rol;
+        $('subscription').textContent=subscriptions.length?subscriptions.map(s=>s.estado+' · '+s.id_sistema).join(' | '):'Sin suscripciones visibles';
+        $('details').hidden=false;
+        status('Sesión reconocida correctamente. Esta es solo una prueba: los módulos todavía no están habilitados.');
+      }catch(e){status('No se pudo completar la verificación: '+String(e?.message||e),true);}
+    }
+    iniciar();
+  </script>
 </body>
 </html>
