@@ -20,7 +20,7 @@ async function proveedorObtenerTodos(){
 }
 function mostrarProveedores(boton){
  seleccionar(boton);
- $('contenidoPrincipal').innerHTML=`<h1 class="page-title">Proveedores</h1><p class="page-subtitle">Administración de proveedores · ${proveedorEsc(negocio.nombre)}</p><div class="vi-prov-toolbar"><input id="proveedoresBuscar" type="search" placeholder="Buscar por nombre, CUIT/CUIL, contacto, localidad..." aria-label="Buscar proveedores" oninput="proveedorBuscar()"><button class="vi-client-btn" type="button" onclick="abrirProveedorFormulario()">+ Nuevo proveedor</button></div><div id="proveedoresResumen" class="vi-client-count"></div><div id="proveedoresListado" class="vi-prov-table-wrap"><div class="loading"><span class="spinner"></span>Cargando proveedores...</div></div><div id="proveedoresModal"></div>`;
+ $('contenidoPrincipal').innerHTML=`<h1 class="page-title">Proveedores</h1><p class="page-subtitle">Administración de proveedores · ${proveedorEsc(negocio.nombre)}</p><div class="vi-prov-toolbar"><input id="proveedoresBuscar" type="search" placeholder="Buscar por nombre, CUIT/CUIL, contacto, localidad..." aria-label="Buscar proveedores" oninput="proveedorBuscar()"><button class="vi-client-btn" type="button" onclick="abrirProveedorFormulario()">+ Nuevo proveedor</button><button class="vi-client-btn alt" type="button" onclick="recargarProveedores()">Actualizar</button></div><div id="proveedoresResumen" class="vi-client-count"></div><div id="proveedoresListado" class="vi-prov-table-wrap"><div class="loading"><span class="spinner"></span>Cargando proveedores...</div></div><div id="proveedoresModal"></div>`;
  proveedoresBusqueda='';proveedoresPagina=1;recargarProveedores();
 }
 async function recargarProveedores(){
