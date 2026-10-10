@@ -2080,7 +2080,7 @@ function productoCambiarPagina(n){productosPagina=n;pintarTablaProductos();}
 function pintarTablaProductos(){
  const lista=$('productosListado');if(!lista)return;
  const q=productosBusqueda.trim().toLocaleLowerCase('es');
- const items=productosActuales.filter(p=>!q||[p.id_producto,p.codigo,p.nombre,p.descripcion,p.categoria,p.marca,p.unidad_medida].join(' ').toLocaleLowerCase('es').includes(q));
+ const items=productosActuales.filter(p=>!q||[p.id_producto,p.codigo,p.nombre,p.descripcion,p.categoria,p.marca,p.unidad_medida,p.unidad].join(' ').toLocaleLowerCase('es').includes(q));
  const activos=productosActuales.filter(p=>p.estado==='ACTIVO');
  const bajo=activos.filter(p=>Number(p.stock||0)<=Number(p.stock_minimo||0));
  const resumen=$('productosResumen');
@@ -2100,10 +2100,26 @@ function cerrarProductoModal(){const m=$('productosModal');if(m)m.innerHTML='';}
 function abrirProductoFormulario(id=''){
  const p=id?productoPorId(id):null;
  if(id&&!p){notificarVicora('Producto no encontrado','Actualizá el listado e intentá nuevamente.','error');return;}
- const campos=[['codigo','Código','text'],['nombre','Nombre *','text'],['descripcion','Descripción','text'],['categoria','Categoría','text'],['marca','Marca','text'],['unidad','Presentación / unidad (opcional)','text'],['precio_compra','Precio de compra','number'],['precio_venta','Precio de venta','number'],['stock','Stock actual','number'],['stock_minimo','Stock mínimo','number']];
+ const campos=[['codigo','Código','text'],['nombre','Nombre *','text'],['descripcion','Descripción','text'],['categoria','Categoría','text'],['marca','Marca','text'],['precio_compra','Precio de compra','number'],['precio_venta','Precio de venta','number'],['stock','Stock actual','number'],['stock_minimo','Stock mínimo','number']];
  const input=([k,label,t])=>`<label>${esc(label)}<input name="${k}" type="${t}" ${t==='number'?'step="0.001" min="0" inputmode="decimal"':'maxlength="250"'} ${k==='nombre'?'required':''} value="${esc(p?.[k]??(t==='number'?'0':''))}"></label>`;
+ const presentaciones=['Botella','Caja','Paquete','Bolsa','Lata','Bidón','Rollo','A granel','Frasco','Pote','Sachet','Blíster','Unidad individual'];
+ const presentacionActual=String(p?.unidad||'');
+ const presentacionBase=presentaciones.includes(presentacionActual)?presentacionActual:(presentacionActual?'Personalizada':'');
+ const presentacionSelector=`<label>Presentación del producto (opcional)<select id="productoPresentacionTipo"><option value="">Seleccionar presentación</option>${presentaciones.map(x=>`<option value="${esc(x)}" ${x===presentacionBase?'selected':''}>${esc(x)}</option>`).join('')}<option value="Personalizada" ${presentacionBase==='Personalizada'?'selected':''}>Otra / Personalizada</option></select></label><label id="productoPresentacionDetalleWrap">Detalle de presentación (opcional)<input id="productoPresentacionDetalle" name="unidad" type="text" maxlength="250" placeholder="Ej.: Botella de 2,25 litros" value="${esc(presentacionActual)}"></label>`;
  const unidades=PRODUCTOS_UNIDADES.includes(p?.unidad_medida)?PRODUCTOS_UNIDADES:[...PRODUCTOS_UNIDADES,String(p?.unidad_medida||'Unidad')];
- $('productosModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="${id?'Editar':'Nuevo'} producto"><h2>${id?'Editar producto':'Nuevo producto'}</h2><form id="productoForm"><div class="vi-client-fields vi-producto-fields">${campos.slice(0,5).map(input).join('')}<label>Unidad de medida *<select name="unidad_medida" required>${unidades.map(u=>`<option value="${esc(u)}" ${u===(p?.unidad_medida||'Unidad')?'selected':''}>${esc(u)}</option>`).join('')}</select></label>${campos.slice(5).map(input).join('')}</div><div id="productoModalError" class="vi-client-alert err" hidden></div><div class="vi-client-footer"><button type="button" class="vi-client-btn alt" id="cancelarProductoBtn">Cancelar</button><button id="guardarProductoBtn" type="submit" class="vi-client-btn">Guardar</button></div></form></div></div>`;
+ $('productosModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="${id?'Editar':'Nuevo'} producto"><h2>${id?'Editar producto':'Nuevo producto'}</h2><form id="productoForm"><div class="vi-client-fields vi-producto-fields">${campos.slice(0,5).map(input).join('')}<label>Unidad de medida *<select name="unidad_medida" required>${unidades.map(u=>`<option value="${esc(u)}" ${u===(p?.unidad_medida||'Unidad')?'selected':''}>${esc(u)}</option>`).join('')}</select></label>${presentacionSelector}${campos.slice(5).map(input).join('')}</div><div id="productoModalError" class="vi-client-alert err" hidden></div><div class="vi-client-footer"><button type="button" class="vi-client-btn alt" id="cancelarProductoBtn">Cancelar</button><button id="guardarProductoBtn" type="submit" class="vi-client-btn">Guardar</button></div></form></div></div>`;
+ const tipoPresentacion=$('productoPresentacionTipo');
+ const detallePresentacion=$('productoPresentacionDetalle');
+ tipoPresentacion.addEventListener('change',()=>{
+  const tipo=tipoPresentacion.value;
+  if(!tipo){detallePresentacion.value='';detallePresentacion.placeholder='Ej.: Botella de 2,25 litros';return;}
+  if(tipo==='Personalizada'){
+   detallePresentacion.value='';detallePresentacion.placeholder='Escribí la presentación';detallePresentacion.focus();
+  }else{
+   detallePresentacion.value=tipo;
+   detallePresentacion.placeholder=`Ej.: ${tipo} de 1 kg`;
+  }
+ });
  $('cancelarProductoBtn').addEventListener('click',cerrarProductoModal);
  $('productoForm').addEventListener('submit',e=>guardarProducto(e,id));
  $('productoForm').querySelector('[name="nombre"]').focus();
@@ -2136,7 +2152,7 @@ async function guardarProducto(event,id){
 }
 function verFichaProducto(id){
  const p=productoPorId(id);if(!p)return;
- const campos=[['ID',p.id_producto],['Código',p.codigo],['Nombre',p.nombre],['Descripción',p.descripcion],['Categoría',p.categoria],['Marca',p.marca],['Unidad de medida',p.unidad_medida],['Presentación / unidad',p.unidad],['Precio de compra',productoMoneda(p.precio_compra)],['Precio de venta',productoMoneda(p.precio_venta)],['Stock actual',productoCantidad(p.stock)],['Stock mínimo',productoCantidad(p.stock_minimo)],['Fecha de alta',clienteFecha(p.fecha_alta)],['Estado',p.estado]];
+ const campos=[['ID',p.id_producto],['Código',p.codigo],['Nombre',p.nombre],['Descripción',p.descripcion],['Categoría',p.categoria],['Marca',p.marca],['Unidad de medida',p.unidad_medida],['Presentación del producto',p.unidad],['Precio de compra',productoMoneda(p.precio_compra)],['Precio de venta',productoMoneda(p.precio_venta)],['Stock actual',productoCantidad(p.stock)],['Stock mínimo',productoCantidad(p.stock_minimo)],['Fecha de alta',clienteFecha(p.fecha_alta)],['Estado',p.estado]];
  $('productosModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="Ficha de producto"><h2>Ficha del producto</h2><div class="vi-client-details">${campos.map(([k,v])=>`<div><small>${esc(k)}</small><strong>${esc(v??'—')}</strong></div>`).join('')}</div><div class="vi-client-footer"><button class="vi-client-btn alt" type="button" id="cerrarFichaProducto">Cerrar</button><button class="vi-client-btn" type="button" id="editarFichaProducto">Editar</button></div></div></div>`;
  $('cerrarFichaProducto').addEventListener('click',cerrarProductoModal);
  $('editarFichaProducto').addEventListener('click',()=>abrirProductoFormulario(id));
