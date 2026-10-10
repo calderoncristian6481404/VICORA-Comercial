@@ -2212,4 +2212,4 @@ async function actualizarContadorProductosInicio(){
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function cerrarSesion(){try{if(db)await db.auth.signOut();}finally{location.assign(ACCESO_URL);}}
 iniciar();
-</script></body></html>
+</script><script src="proveedores.js"></script></body></html>
