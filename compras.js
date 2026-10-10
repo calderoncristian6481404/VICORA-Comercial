@@ -1,4 +1,4 @@
-/* VICORA Comercial · Paso 68.23 · Compras independiente */
+/* VICORA Comercial · Paso 68.35 · Compras independiente */
 'use strict';
 let comprasActuales=[],comprasBusqueda='',comprasPagina=1,compraSeleccionada=null,compraLineas=[],compraProveedores=[],compraProductos=[];
 const COMPRAS_PAGINA=15;
@@ -21,7 +21,7 @@ function mostrarCompras(boton){
  recargarCompras();
 }
 async function recargarCompras(){const el=$('comprasListado');if(!el)return;
- try{await compraAcceso();comprasActuales=await compraLeerTabla('compras','id_negocio,id_compra,id_proveedor,fecha_compra,tipo_comprobante,numero_comprobante,observaciones,subtotal,total,estado,fecha_alta,fecha_confirmacion');
+ try{await compraAcceso();comprasActuales=await compraLeerTabla('compras','id_negocio,id_compra,id_proveedor,fecha_compra,tipo_comprobante,numero_comprobante,observaciones,subtotal,total,estado,fecha_alta,fecha_confirmacion,condicion_pago,importe_pago_inicial,medio_pago_inicial');
   compraProveedores=await compraLeerTabla('proveedores','id_negocio,id_proveedor,nombre,estado');
   if(el.isConnected)pintarCompras();
  }catch(e){if(el.isConnected)el.innerHTML=`<div class="vi-client-alert err">${compraEsc(e.message||e)}</div>`;compraAviso('Error al cargar compras',String(e.message||e),'error');}
@@ -51,7 +51,7 @@ async function guardarCompraNueva(e){e.preventDefault();const f=e.currentTarget,
  }catch(x){err.textContent=String(x.message||x);err.hidden=false;compraAviso('No se pudo crear la compra',String(x.message||x),'error');}finally{if(btn.isConnected)btn.disabled=false;}
 }
 async function abrirCompraDetalle(id){
- try{await compraAcceso();const {data,error}=await db.from('compras').select('id_negocio,id_compra,id_proveedor,fecha_compra,tipo_comprobante,numero_comprobante,observaciones,total,estado,fecha_confirmacion').eq('id_negocio',perfil.id_negocio).eq('id_compra',id).single();if(error)throw error;
+ try{await compraAcceso();const {data,error}=await db.from('compras').select('id_negocio,id_compra,id_proveedor,fecha_compra,tipo_comprobante,numero_comprobante,observaciones,total,estado,fecha_confirmacion,condicion_pago,importe_pago_inicial,medio_pago_inicial').eq('id_negocio',perfil.id_negocio).eq('id_compra',id).single();if(error)throw error;
  compraSeleccionada=data;const {data:det,error:de}=await db.from('compras_detalle').select('numero_linea,id_producto,cantidad,precio_compra,subtotal').eq('id_negocio',perfil.id_negocio).eq('id_compra',id).order('numero_linea');if(de)throw de;compraLineas=det||[];
  compraProductos=await compraLeerTabla('productos','id_negocio,id_producto,codigo,nombre,precio_compra,unidad_medida,stock,estado');
  pintarCompraDetalle();
@@ -59,8 +59,13 @@ async function abrirCompraDetalle(id){
 }
 function compraProducto(id){return compraProductos.find(p=>p.id_producto===id);}
 function pintarCompraDetalle(){const c=compraSeleccionada;if(!c)return;const borrador=c.estado==='BORRADOR';const total=compraLineas.reduce((s,l)=>s+Math.round(Number(l.cantidad)*Number(l.precio_compra)*100)/100,0);
+ const condicion=c.condicion_pago||'CUENTA_CORRIENTE';
+ const opcionesCond=[['CUENTA_CORRIENTE','Cuenta corriente'],['CONTADO','Contado'],['PAGO_PARCIAL','Pago parcial']];
+ const opcionesMed=[['EFECTIVO','Efectivo'],['TRANSFERENCIA','Transferencia'],['TARJETA','Tarjeta'],['CHEQUE','Cheque'],['OTRO','Otro']];
+ const pagoPanel=borrador?`<section style="margin-top:20px;padding:16px;border:1px solid #bfdbfe;background:#f8fbff;border-radius:12px"><h3 style="margin-bottom:12px">Condición de pago</h3><div class="vi-prov-fields"><label>Condición *<select id="compraCondicion" onchange="compraActualizarCamposPago()">${opcionesCond.map(([v,t])=>`<option value="${v}" ${condicion===v?'selected':''}>${t}</option>`).join('')}</select></label><label id="compraMedioCont">Medio de pago *<select id="compraMedio"><option value="">Seleccionar...</option>${opcionesMed.map(([v,t])=>`<option value="${v}" ${c.medio_pago_inicial===v?'selected':''}>${t}</option>`).join('')}</select></label><label id="compraImporteCont">Anticipo ($) *<input id="compraImporte" type="number" min="0.01" step="0.01" value="${compraEsc(c.importe_pago_inicial||'')}"></label></div><p class="vi-muted" style="margin-top:12px">Contado: se registra el pago completo. Cuenta corriente: queda pendiente. Pago parcial: se registra el anticipo. Guardá la condición antes de confirmar.</p><div class="vi-prov-footer"><button type="button" class="vi-client-btn" id="compraPagoGuardar" onclick="guardarCondicionCompra()">Guardar condición de pago</button></div></section>`:`<section style="margin-top:18px;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px"><h3 style="margin-bottom:8px">Pago de la compra</h3><p>Condición: <strong>${compraEsc(opcionesCond.find(x=>x[0]===condicion)?.[1]||condicion)}</strong></p><p>Pago inicial: <strong>${compraMoney(condicion==='CONTADO'?c.total:c.importe_pago_inicial)}</strong></p><p>Saldo inicial pendiente: <strong>${compraMoney(Math.max(0,Number(c.total||0)-Number(condicion==='CONTADO'?c.total:c.importe_pago_inicial||0)))}</strong></p></section>`;
  const el=$('comprasModal');if(!el)return;
- el.innerHTML=`<div class="vi-prov-overlay"><div class="vi-prov-dialog" style="width:min(950px,100%)" role="dialog" aria-modal="true" aria-label="Detalle de compra"><h2>Compra ${compraEsc(c.id_compra)}</h2><div class="vi-prov-details" style="margin-bottom:18px"><div><small>Proveedor</small><strong>${compraEsc(compraNombreProveedor(c.id_proveedor))}</strong></div><div><small>Fecha</small><strong>${compraFecha(c.fecha_compra)}</strong></div><div><small>Comprobante</small><strong>${compraEsc([c.tipo_comprobante,c.numero_comprobante].filter(Boolean).join(' ')||'—')}</strong></div><div><small>Estado</small><strong>${compraEsc(c.estado)}</strong></div></div><h3 style="margin-bottom:12px">Productos de la compra</h3><div class="vi-client-table-wrap"><table class="vi-client-table" style="min-width:640px"><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th>${borrador?'<th>Acción</th>':''}</tr></thead><tbody>${compraLineas.length?compraLineas.map(l=>`<tr><td>${compraEsc(compraProducto(l.id_producto)?.nombre||l.id_producto)}</td><td>${compraEsc(l.cantidad)}</td><td>${compraMoney(l.precio_compra)}</td><td>${compraMoney(Math.round(Number(l.cantidad)*Number(l.precio_compra)*100)/100)}</td>${borrador?`<td><button class="vi-client-btn warn" type="button" data-compra-borrar="${l.numero_linea}" style="padding:7px 10px">Quitar</button></td>`:''}</tr>`).join(''):`<tr><td colspan="${borrador?5:4}" style="text-align:center;color:#64748b">Todavía no hay productos.</td></tr>`}</tbody></table></div><p style="text-align:right;margin-top:15px;font-size:18px"><strong>Total: ${compraMoney(c.estado==='CONFIRMADA'?c.total:total)}</strong></p>${borrador?`<div id="compraAgregarContenedor" style="margin-top:18px"></div><p class="vi-muted" style="margin-top:12px">El stock aumenta únicamente cuando confirmás la compra.</p>`:''}<div class="vi-prov-footer"><button class="vi-client-btn alt" type="button" onclick="cerrarCompraModal()">Cerrar</button>${borrador?`<button class="vi-client-btn alt" type="button" onclick="compraMostrarAgregar()">+ Agregar producto</button><button class="vi-client-btn ok" type="button" onclick="confirmarCompraActual()" ${!compraLineas.length?'disabled':''}>Confirmar compra</button>`:''}</div></div></div>`;
+ el.innerHTML=`<div class="vi-prov-overlay"><div class="vi-prov-dialog" style="width:min(950px,100%)" role="dialog" aria-modal="true" aria-label="Detalle de compra"><h2>Compra ${compraEsc(c.id_compra)}</h2><div class="vi-prov-details" style="margin-bottom:18px"><div><small>Proveedor</small><strong>${compraEsc(compraNombreProveedor(c.id_proveedor))}</strong></div><div><small>Fecha</small><strong>${compraFecha(c.fecha_compra)}</strong></div><div><small>Comprobante</small><strong>${compraEsc([c.tipo_comprobante,c.numero_comprobante].filter(Boolean).join(' ')||'—')}</strong></div><div><small>Estado</small><strong>${compraEsc(c.estado)}</strong></div></div><h3 style="margin-bottom:12px">Productos de la compra</h3><div class="vi-client-table-wrap"><table class="vi-client-table" style="min-width:640px"><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th>${borrador?'<th>Acción</th>':''}</tr></thead><tbody>${compraLineas.length?compraLineas.map(l=>`<tr><td>${compraEsc(compraProducto(l.id_producto)?.nombre||l.id_producto)}</td><td>${compraEsc(l.cantidad)}</td><td>${compraMoney(l.precio_compra)}</td><td>${compraMoney(Math.round(Number(l.cantidad)*Number(l.precio_compra)*100)/100)}</td>${borrador?`<td><button class="vi-client-btn warn" type="button" data-compra-borrar="${l.numero_linea}" style="padding:7px 10px">Quitar</button></td>`:''}</tr>`).join(''):`<tr><td colspan="${borrador?5:4}" style="text-align:center;color:#64748b">Todavía no hay productos.</td></tr>`}</tbody></table></div><p style="text-align:right;margin-top:15px;font-size:18px"><strong>Total: ${compraMoney(c.estado==='CONFIRMADA'?c.total:total)}</strong></p>${pagoPanel}${borrador?`<div id="compraAgregarContenedor" style="margin-top:18px"></div><p class="vi-muted" style="margin-top:12px">El stock aumenta únicamente cuando confirmás la compra.</p>`:''}<div class="vi-prov-footer"><button class="vi-client-btn alt" type="button" onclick="cerrarCompraModal()">Cerrar</button>${borrador?`<button class="vi-client-btn alt" type="button" onclick="compraMostrarAgregar()">+ Agregar producto</button><button class="vi-client-btn ok" type="button" onclick="confirmarCompraActual()" ${!compraLineas.length?'disabled':''}>Confirmar compra</button>`:''}</div></div></div>`;
+ if(borrador)compraActualizarCamposPago();
 }
 function compraMostrarAgregar(){const el=$('compraAgregarContenedor');if(!el)return;const productos=compraProductos.filter(p=>p.estado==='ACTIVO');if(!productos.length){compraAviso('Sin productos','Primero cargá productos activos.','advertencia');return;}
  el.innerHTML=`<form id="compraAgregarForm" onsubmit="agregarLineaCompra(event)" style="background:#f8fafc;border:1px solid #dbe3ec;border-radius:12px;padding:15px"><h3 style="margin-bottom:12px">Agregar producto</h3><div class="vi-prov-fields"><label>Producto *<select name="id_producto" required onchange="compraPrecioSugerido()"><option value="">Seleccionar producto...</option>${productos.map(p=>`<option value="${compraEsc(p.id_producto)}">${compraEsc(p.nombre)}${p.codigo?' · '+compraEsc(p.codigo):''}</option>`).join('')}</select></label><label>Cantidad *<input name="cantidad" type="number" step="0.001" min="0.001" required></label><label>Precio de compra unitario *<input name="precio_compra" type="number" step="0.01" min="0" required></label></div><p id="compraLineaError" class="vi-prov-error" hidden></p><div class="vi-prov-footer"><button class="vi-client-btn" id="compraLineaGuardar" type="submit">Guardar producto</button></div></form>`;
@@ -78,11 +83,38 @@ async function quitarLineaCompra(n){const c=compraSeleccionada;if(!c||c.estado!=
  if(!await confirmarVicora('Quitar producto','¿Querés quitar este producto del borrador?',true))return;
  try{await compraAcceso();const {error}=await db.from('compras_detalle').delete().eq('id_negocio',perfil.id_negocio).eq('id_compra',c.id_compra).eq('numero_linea',n);if(error)throw error;compraAviso('Producto quitado','El borrador fue actualizado.','exito');await abrirCompraDetalle(c.id_compra);}catch(e){compraAviso('No se pudo quitar',String(e.message||e),'error');}
 }
+function compraActualizarCamposPago(){
+ const condicion=$('compraCondicion')?.value;
+ const medio=$('compraMedioCont'),importe=$('compraImporteCont');
+ if(medio)medio.style.display=condicion==='CUENTA_CORRIENTE'?'none':'';
+ if(importe)importe.style.display=condicion==='PAGO_PARCIAL'?'':'none';
+}
+async function guardarCondicionCompra(){
+ const c=compraSeleccionada;if(!c||c.estado!=='BORRADOR')return false;
+ const btn=$('compraPagoGuardar'),condicion=$('compraCondicion')?.value;
+ const medio=condicion==='CUENTA_CORRIENTE'?null:($('compraMedio')?.value||null);
+ const importe=condicion==='PAGO_PARCIAL'?Number($('compraImporte')?.value):0;
+ const total=compraLineas.reduce((sum,l)=>sum+Math.round(Number(l.cantidad)*Number(l.precio_compra)*100)/100,0);
+ try{
+  if(condicion!=='CUENTA_CORRIENTE'&&!medio)throw new Error('Seleccioná el medio de pago.');
+  if(condicion==='PAGO_PARCIAL'&&(!Number.isFinite(importe)||importe<=0||importe>=total))throw new Error('El anticipo debe ser mayor a cero y menor al total de la compra.');
+  if(btn)btn.disabled=true;
+  await compraAcceso();
+  const {data,error}=await db.from('compras').update({condicion_pago:condicion,importe_pago_inicial:importe,medio_pago_inicial:medio}).eq('id_negocio',perfil.id_negocio).eq('id_compra',c.id_compra).eq('estado','BORRADOR').select('id_compra').single();
+  if(error)throw error;if(!data)throw new Error('No se encontró el borrador.');
+  c.condicion_pago=condicion;c.importe_pago_inicial=importe;c.medio_pago_inicial=medio;
+  compraAviso('Condición guardada','La forma de pago quedó registrada en el borrador.','exito');return true;
+ }catch(e){compraAviso('No se pudo guardar el pago',String(e.message||e),'error');return false;}
+ finally{if(btn?.isConnected)btn.disabled=false;}
+}
 async function confirmarCompraActual(){const c=compraSeleccionada;if(!c||c.estado!=='BORRADOR'||!compraLineas.length)return;
- if(!await confirmarVicora('Confirmar compra',`¿Confirmás la compra ${c.id_compra}? Esta operación sumará las cantidades al stock y no podrá deshacerse desde esta pantalla.`))return;
+ const condicion=$('compraCondicion')?.value||c.condicion_pago||'CUENTA_CORRIENTE';
+ const importe=condicion==='PAGO_PARCIAL'?Number($('compraImporte')?.value):condicion==='CONTADO'?compraLineas.reduce((sum,l)=>sum+Math.round(Number(l.cantidad)*Number(l.precio_compra)*100)/100,0):0;
+ if(!await confirmarVicora('Confirmar compra',`¿Confirmás la compra ${c.id_compra}? Se actualizará el stock y ${condicion==='CUENTA_CORRIENTE'?'quedará el saldo pendiente':`se registrará un pago de ${compraMoney(importe)}`}. Esta operación no se puede deshacer desde esta pantalla.`))return;
+ if(!await guardarCondicionCompra())return;
  try{await compraAcceso();const {data,error}=await db.rpc('confirmar_compra',{p_id_negocio:perfil.id_negocio,p_id_compra:c.id_compra});if(error)throw error;
  if(data?.ok===false)throw new Error(data.mensaje||'No se pudo confirmar la compra.');
- compraAviso('Compra confirmada','El stock se actualizó automáticamente.','exito');await recargarCompras();await abrirCompraDetalle(c.id_compra);
+ compraAviso('Compra confirmada',`Stock actualizado. Pago inicial: ${compraMoney(data?.pago_inicial||0)}. Saldo pendiente: ${compraMoney(data?.saldo_pendiente||0)}.`,'exito');await recargarCompras();await abrirCompraDetalle(c.id_compra);
  }catch(e){compraAviso('No se pudo confirmar',String(e.message||e),'error');}
 }
 document.addEventListener('click',e=>{const abrir=e.target.closest('[data-compra-id]');if(abrir){abrirCompraDetalle(abrir.dataset.compraId);return;}const borrar=e.target.closest('[data-compra-borrar]');if(borrar)quitarLineaCompra(Number(borrar.dataset.compraBorrar));});
