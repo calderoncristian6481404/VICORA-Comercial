@@ -1575,7 +1575,7 @@
 .vi-confirm-actions{display:flex;justify-content:flex-end;gap:10px}.vi-confirm-actions button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}
 .vi-confirm-cancel{background:#e2e8f0;color:#334155}.vi-confirm-accept{background:#2563eb;color:white}.vi-confirm-accept.danger{background:#b91c1c}
 
-/* PASO 61 · PRODUCTOS: reutiliza el estilo probado de Clientes */
+/* PASO 66 · PRODUCTOS: lector de barras e IDs automáticos */
 .vi-producto-summary{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 18px}
 .vi-producto-chip{padding:9px 13px;border:1px solid #dbe3ec;background:white;border-radius:10px;font-size:12px;color:#334155}
 .vi-producto-chip strong{font-size:15px;color:#172554}
@@ -2066,7 +2066,7 @@ async function obtenerProductosDB(){
 }
 async function mostrarProductos(boton){
  seleccionar(boton);productosBusqueda='';productosPagina=1;
- $('contenidoPrincipal').innerHTML=`<h1 class="page-title">Productos</h1><p class="page-subtitle">Catálogo, precios y control de stock · ${esc(negocio.nombre)}</p><div class="vi-client-toolbar"><input id="productosBuscar" type="search" placeholder="Buscar por código, nombre, marca, categoría..." aria-label="Buscar productos" oninput="productoBuscarTexto()"><button class="vi-client-btn" type="button" onclick="abrirProductoFormulario()">+ Nuevo producto</button><button class="vi-client-btn alt" type="button" onclick="recargarProductos()">Actualizar</button></div><div id="productosResumen"></div><div id="productosListado" class="vi-client-table-wrap"><p style="padding:25px">Cargando productos...</p></div><div id="productosModal"></div>`;
+ $('contenidoPrincipal').innerHTML=`<h1 class="page-title">Productos</h1><p class="page-subtitle">Catálogo, precios y control de stock · ${esc(negocio.nombre)}</p><div class="vi-client-toolbar"><input id="productosBuscar" type="search" placeholder="Buscar por código de barras, nombre, marca, categoría..." aria-label="Buscar productos" oninput="productoBuscarTexto()"><button class="vi-client-btn" type="button" onclick="abrirProductoFormulario()">+ Nuevo producto</button><button class="vi-client-btn alt" type="button" onclick="recargarProductos()">Actualizar</button></div><div id="productosResumen"></div><div id="productosListado" class="vi-client-table-wrap"><p style="padding:25px">Cargando productos...</p></div><div id="productosModal"></div>`;
  await recargarProductos();
 }
 async function recargarProductos(){
@@ -2100,7 +2100,7 @@ function cerrarProductoModal(){const m=$('productosModal');if(m)m.innerHTML='';}
 function abrirProductoFormulario(id=''){
  const p=id?productoPorId(id):null;
  if(id&&!p){notificarVicora('Producto no encontrado','Actualizá el listado e intentá nuevamente.','error');return;}
- const campos=[['codigo','Código','text'],['nombre','Nombre *','text'],['descripcion','Descripción','text'],['categoria','Categoría','text'],['marca','Marca','text'],['precio_compra','Precio de compra','number'],['precio_venta','Precio de venta','number'],['stock','Stock actual','number'],['stock_minimo','Stock mínimo','number']];
+ const campos=[['codigo','Código de barras / Código comercial','text'],['nombre','Nombre *','text'],['descripcion','Descripción','text'],['categoria','Categoría','text'],['marca','Marca','text'],['precio_compra','Precio de compra','number'],['precio_venta','Precio de venta','number'],['stock','Stock actual','number'],['stock_minimo','Stock mínimo','number']];
  const input=([k,label,t])=>`<label>${esc(label)}<input name="${k}" type="${t}" ${t==='number'?'step="0.001" min="0" inputmode="decimal"':'maxlength="250"'} ${k==='nombre'?'required':''} value="${esc(p?.[k]??(t==='number'?'0':''))}"></label>`;
  const presentaciones=['Botella','Caja','Paquete','Bolsa','Lata','Bidón','Rollo','A granel','Frasco','Pote','Sachet','Blíster','Unidad individual'];
  const presentacionActual=String(p?.unidad||'');
@@ -2122,14 +2122,12 @@ function abrirProductoFormulario(id=''){
  });
  $('cancelarProductoBtn').addEventListener('click',cerrarProductoModal);
  $('productoForm').addEventListener('submit',e=>guardarProducto(e,id));
- $('productoForm').querySelector('[name="nombre"]').focus();
-}
-async function generarProductoId(){
- // Correlativo provisional: una secuencia atómica en PostgreSQL será necesaria antes del uso concurrente en producción.
- const {data,error}=await db.from('productos').select('id_producto').eq('id_negocio',perfil.id_negocio).order('id_producto',{ascending:false}).limit(1);
- if(error)throw error;
- const max=Number((data?.[0]?.id_producto||'PRO-000000').match(/^PRO-(\d+)$/)?.[1]||0);
- return 'PRO-'+String(max+1).padStart(6,'0');
+ const codigoInput=$('productoForm').querySelector('[name="codigo"]');
+ codigoInput.setAttribute('autocomplete','off');
+ codigoInput.setAttribute('placeholder','Escaneá con lector USB o escribí el código');
+ codigoInput.setAttribute('aria-label','Código de barras o código comercial');
+ codigoInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('productoForm').querySelector('[name="nombre"]').focus();}});
+ if(!id)codigoInput.focus();else $('productoForm').querySelector('[name="nombre"]').focus();
 }
 async function guardarProducto(event,id){
  event.preventDefault();const form=$('productoForm');if(!form)return;
@@ -2141,10 +2139,18 @@ async function guardarProducto(event,id){
   if(!datos.nombre)throw new Error('El nombre del producto es obligatorio.');
   if(!datos.unidad_medida)throw new Error('Seleccioná la unidad de medida.');
   await productoVerificarAcceso();
+  if(datos.codigo){
+   const {data:repetido,error:codigoError}=await db.from('productos').select('id_producto').eq('id_negocio',perfil.id_negocio).eq('codigo',datos.codigo).limit(1);
+   if(codigoError)throw codigoError;
+   if((repetido||[]).some(p=>p.id_producto!==id))throw new Error('Ya existe un producto con ese código en este negocio.');
+  }
   let resultado;
   if(id)resultado=await db.from('productos').update(datos).eq('id_negocio',perfil.id_negocio).eq('id_producto',id).select('id_producto').single();
-  else resultado=await db.from('productos').insert({...datos,id_negocio:perfil.id_negocio,id_producto:await generarProductoId(),estado:'ACTIVO'}).select('id_producto').single();
-  if(resultado.error)throw resultado.error;
+  else resultado=await db.from('productos').insert({...datos,id_negocio:perfil.id_negocio,estado:'ACTIVO'}).select('id_producto').single();
+  if(resultado.error){
+   if(resultado.error.code==='23505'&&datos.codigo)throw new Error('El código de barras ya está registrado en este negocio.');
+   throw resultado.error;
+  }
   cerrarProductoModal();await recargarProductos();
   notificarVicora(id?'Producto actualizado':'Producto registrado','Los datos se guardaron correctamente en PostgreSQL.','exito');
  }catch(e){err.textContent='No se pudo guardar: '+String(e.message||e);err.hidden=false;notificarVicora('No se pudo guardar el producto',String(e.message||e),'error');}
@@ -2152,7 +2158,7 @@ async function guardarProducto(event,id){
 }
 function verFichaProducto(id){
  const p=productoPorId(id);if(!p)return;
- const campos=[['ID',p.id_producto],['Código',p.codigo],['Nombre',p.nombre],['Descripción',p.descripcion],['Categoría',p.categoria],['Marca',p.marca],['Unidad de medida',p.unidad_medida],['Presentación del producto',p.unidad],['Precio de compra',productoMoneda(p.precio_compra)],['Precio de venta',productoMoneda(p.precio_venta)],['Stock actual',productoCantidad(p.stock)],['Stock mínimo',productoCantidad(p.stock_minimo)],['Fecha de alta',clienteFecha(p.fecha_alta)],['Estado',p.estado]];
+ const campos=[['ID',p.id_producto],['Código de barras / Código comercial',p.codigo],['Nombre',p.nombre],['Descripción',p.descripcion],['Categoría',p.categoria],['Marca',p.marca],['Unidad de medida',p.unidad_medida],['Presentación del producto',p.unidad],['Precio de compra',productoMoneda(p.precio_compra)],['Precio de venta',productoMoneda(p.precio_venta)],['Stock actual',productoCantidad(p.stock)],['Stock mínimo',productoCantidad(p.stock_minimo)],['Fecha de alta',clienteFecha(p.fecha_alta)],['Estado',p.estado]];
  $('productosModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="Ficha de producto"><h2>Ficha del producto</h2><div class="vi-client-details">${campos.map(([k,v])=>`<div><small>${esc(k)}</small><strong>${esc(v??'—')}</strong></div>`).join('')}</div><div class="vi-client-footer"><button class="vi-client-btn alt" type="button" id="cerrarFichaProducto">Cerrar</button><button class="vi-client-btn" type="button" id="editarFichaProducto">Editar</button></div></div></div>`;
  $('cerrarFichaProducto').addEventListener('click',cerrarProductoModal);
  $('editarFichaProducto').addEventListener('click',()=>abrirProductoFormulario(id));
