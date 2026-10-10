@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VICORA Comercial · Prueba de diseño</title><style>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VICORA Comercial</title><style>
 
     /* =====================================================
        ESTILO GENERAL
@@ -1558,6 +1558,9 @@
   
 
 #sistema{display:none}.vi-test-note{background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:15px;margin-bottom:18px;color:#1e40af;font-size:13px;line-height:1.6}.vi-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}.vi-tile{background:white;border:1px solid #e2e8f0;border-radius:15px;padding:20px}.vi-tile b{font-size:26px;display:block;margin-top:8px}.vi-muted{color:#64748b;font-size:13px}.vi-guard{min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#172554,#1d4ed8);color:#fff;text-align:center}.vi-guard a{color:white}.vi-guard p{margin-top:12px;line-height:1.6}.vi-guard button{margin-top:16px;padding:12px 18px;border:0;border-radius:10px;font-weight:700;cursor:pointer}.vi-module-placeholder{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;line-height:1.8}.vi-module-placeholder h2{margin-bottom:10px}.vi-module-placeholder p{color:#475569}.vi-status{display:inline-block;border-radius:999px;padding:4px 9px;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:700;margin-top:10px}@media(max-width:1100px){.vi-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.vi-tiles{grid-template-columns:1fr}.vi-tile{padding:14px}}
+
+/* PASO 55 · CLIENTES */
+.vi-client-toolbar{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin:18px 0}.vi-client-toolbar input{flex:1;min-width:180px;max-width:430px;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px}.vi-client-btn{border:0;background:#2563eb;color:white;border-radius:9px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer}.vi-client-btn:disabled{opacity:.55;cursor:wait}.vi-client-btn.alt{background:#e2e8f0;color:#1e293b}.vi-client-btn.warn{background:#b91c1c}.vi-client-btn.ok{background:#15803d}.vi-client-table-wrap{background:white;border:1px solid #e2e8f0;border-radius:15px;overflow:auto}.vi-client-table{width:100%;border-collapse:collapse;min-width:850px;font-size:13px}.vi-client-table th{text-align:left;background:#f1f5f9;padding:13px;color:#475569}.vi-client-table td{padding:13px;border-top:1px solid #e2e8f0}.vi-client-table tr:hover td{background:#f8fafc}.vi-client-actions{display:flex;gap:6px;flex-wrap:wrap}.vi-client-actions button{border:1px solid #cbd5e1;background:white;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px}.vi-client-status{padding:4px 8px;border-radius:20px;background:#dcfce7;color:#166534;font-weight:700;font-size:11px}.vi-client-status.off{background:#fee2e2;color:#991b1b}.vi-client-count{font-size:13px;color:#64748b;margin-bottom:12px}.vi-client-alert{padding:12px 14px;border-radius:10px;margin:12px 0;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-size:13px}.vi-client-alert.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}.vi-client-overlay{position:fixed;inset:0;background:#0f172a99;z-index:3000;display:flex;align-items:center;justify-content:center;padding:18px}.vi-client-dialog{width:min(700px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:24px;box-shadow:0 25px 70px #0f172a44}.vi-client-dialog h2{margin:0 0 18px}.vi-client-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.vi-client-fields label{display:block;font-size:12px;font-weight:700;color:#334155}.vi-client-fields input{display:block;width:100%;padding:11px;margin-top:5px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}.vi-client-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.vi-client-details{display:grid;grid-template-columns:1fr 1fr;gap:12px}.vi-client-details div{padding:10px;background:#f8fafc;border-radius:8px;overflow-wrap:anywhere}.vi-client-details small{display:block;color:#64748b;margin-bottom:5px}@media(max-width:600px){.vi-client-fields,.vi-client-details{grid-template-columns:1fr}.vi-client-dialog{padding:17px}}
 </style></head><body><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
@@ -1850,6 +1853,7 @@ const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
 const ACCESO_URL='https://calderoncristian6481404.github.io/vicora-acceso/';
 const $=id=>document.getElementById(id);
 let db=null, perfil=null, negocio=null, suscripciones=[];
+let clientesActuales=[],clientesBusqueda='',clientesAviso='',clientesError=false,clientesCargando=false;
 const nombres={clientes:'Clientes',productos:'Productos',proveedores:'Proveedores',ventas:'Ventas',compras:'Compras',caja:'Caja',cobros:'Cobros',pagos:'Pagos',reportes:'Reportes',presupuestos:'Presupuestos'};
 function mensajeBloqueo(texto){$('guard').innerHTML='';const h=document.createElement('h2');h.textContent='VICORA Comercial';const p=document.createElement('p');p.textContent=texto;const b=document.createElement('button');b.textContent='Volver a VICORA Acceso';b.onclick=()=>location.assign(ACCESO_URL);const c=document.createElement('div');c.append(h,p,b);$('guard').append(c);$('guard').style.display='grid';$('sistema').style.display='none';}
 async function iniciar(){
@@ -1874,7 +1878,8 @@ async function iniciar(){
   if((subs||[]).some(s=>s.id_negocio!==perfil.id_negocio))throw new Error('Se detectaron suscripciones de otro negocio. Revisar RLS.');
   suscripciones=(subs||[]).filter(s=>s.id_sistema==='SIS-000001');
   if(!suscripciones.length)throw new Error('Este negocio no tiene suscripción a VICORA Comercial.');
-  // Esta etapa es visual: no se habilitan lecturas ni escrituras comerciales.
+  if(!suscripciones.some(s=>['ACTIVA','PRUEBA'].includes(String(s.estado||'').toUpperCase())))throw new Error('La suscripción a VICORA Comercial no está habilitada.');
+  // Los módulos se habilitan progresivamente, comenzando por Clientes.
   $('nombreNegocio').textContent=negocio.nombre;
   $('nombreUsuario').textContent=perfil.nombre;
   $('rolUsuario').textContent=perfil.rol;
@@ -1883,9 +1888,95 @@ async function iniciar(){
  }catch(err){mensajeBloqueo('No se pudo habilitar el panel: '+String(err?.message||err));}
 }
 function seleccionar(boton){document.querySelectorAll('.sidebar .menu-item').forEach(b=>b.classList.remove('active'));if(boton)boton.classList.add('active');}
-function aviso(){return '<div class="vi-test-note"><strong>Versión de prueba — Migración a Supabase.</strong> Se recuperó el diseño y la navegación. Los módulos comerciales todavía no están conectados: no se pueden crear, editar ni eliminar registros. Google Apps Script y Sheets no se modifican.</div>';}
-function mostrarInicio(boton){seleccionar(boton);const subs=suscripciones.map(s=>s.estado).join(', ');$('contenidoPrincipal').innerHTML=`<section class="vi-home"><div class="vi-heading"><div><h1>Panel de inicio</h1><p>Resumen de ${esc(negocio.nombre)}</p></div></div>${aviso()}<div class="vi-tiles"><div class="vi-tile"><span class="vi-muted">Clientes</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Productos</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Ventas</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Pendientes</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div></div><div class="vi-module-placeholder" style="margin-top:20px"><h2>Mi negocio</h2><p><strong>Usuario:</strong> ${esc(perfil.nombre)} (${esc(perfil.id_usuario)})</p><p><strong>Negocio:</strong> ${esc(negocio.nombre)} (${esc(negocio.id_negocio)})</p><p><strong>Rol:</strong> ${esc(perfil.rol)}</p><p><strong>Suscripción:</strong> ${esc(subs)}</p><span class="vi-status">Sesión validada con Supabase Auth</span></div></section>`;}
-function mostrarModulo(modulo,boton){seleccionar(boton);const nombre=nombres[modulo]||'Módulo';$('contenidoPrincipal').innerHTML=`<h1 class="page-title">${esc(nombre)}</h1><p class="page-subtitle">VICORA Comercial · ${esc(negocio.nombre)}</p>${aviso()}<div class="vi-module-placeholder"><h2>${esc(nombre)}</h2><p>La pantalla de ${esc(nombre.toLowerCase())} se conectará a PostgreSQL en una próxima etapa. Por seguridad, las operaciones están deshabilitadas durante esta prueba.</p><span class="vi-status">Pendiente de migración</span></div>`;}
+function aviso(){return '<div class="vi-test-note"><strong>Migración a Supabase.</strong> Clientes ya está conectado a PostgreSQL. Los demás módulos siguen pendientes. Google Apps Script y Sheets no se modifican.</div>';}
+function mostrarInicio(boton){seleccionar(boton);const subs=suscripciones.map(s=>s.estado).join(', ');$('contenidoPrincipal').innerHTML=`<section class="vi-home"><div class="vi-heading"><div><h1>Panel de inicio</h1><p>Resumen de ${esc(negocio.nombre)}</p></div></div>${aviso()}<div class="vi-tiles"><div class="vi-tile"><span class="vi-muted">Clientes</span><b id="inicioClientesContador">—</b><small class="vi-muted">Clientes activos en PostgreSQL</small></div><div class="vi-tile"><span class="vi-muted">Productos</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Ventas</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Pendientes</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div></div><div class="vi-module-placeholder" style="margin-top:20px"><h2>Mi negocio</h2><p><strong>Usuario:</strong> ${esc(perfil.nombre)} (${esc(perfil.id_usuario)})</p><p><strong>Negocio:</strong> ${esc(negocio.nombre)} (${esc(negocio.id_negocio)})</p><p><strong>Rol:</strong> ${esc(perfil.rol)}</p><p><strong>Suscripción:</strong> ${esc(subs)}</p><span class="vi-status">Sesión validada con Supabase Auth</span></div></section>`;actualizarContadorInicio();}
+function mostrarModulo(modulo,boton){if(modulo==='clientes'){mostrarClientes(boton);return;}seleccionar(boton);const nombre=nombres[modulo]||'Módulo';$('contenidoPrincipal').innerHTML=`<h1 class="page-title">${esc(nombre)}</h1><p class="page-subtitle">VICORA Comercial · ${esc(negocio.nombre)}</p>${aviso()}<div class="vi-module-placeholder"><h2>${esc(nombre)}</h2><p>La pantalla de ${esc(nombre.toLowerCase())} se conectará a PostgreSQL en una próxima etapa. Por seguridad, las operaciones están deshabilitadas durante esta prueba.</p><span class="vi-status">Pendiente de migración</span></div>`;}
+
+// CLIENTES · Consultas y escrituras bajo la sesión real y RLS de Supabase.
+function clienteMensaje(texto,error=false){clientesAviso=texto;clientesError=error;const el=$('clientesMensaje');if(el){el.textContent=texto;el.hidden=!texto;el.className='vi-client-alert'+(error?' err':'');}}
+function clienteFecha(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'});}
+function clienteBuscarTexto(){const input=$('clientesBuscar');clientesBusqueda=input?input.value:'';pintarTablaClientes();}
+async function clienteVerificarAcceso(){
+ const {data:{user},error:ue}=await db.auth.getUser();if(ue||!user||user.id!==perfil.auth_user_id)throw new Error('La sesión cambió. Volvé a ingresar.');
+ const {data:ps,error:pe}=await db.from('usuarios').select('id_negocio,estado,auth_user_id');
+ if(pe||ps?.length!==1||ps[0].auth_user_id!==user.id||ps[0].id_negocio!==perfil.id_negocio||ps[0].estado!=='ACTIVO')throw new Error('Tu usuario ya no está autorizado.');
+ const {data:ss,error:se}=await db.from('suscripciones').select('id_negocio,id_sistema,estado,proximo_vencimiento');
+ if(se)throw se;
+ if(!(ss||[]).some(s=>s.id_negocio===perfil.id_negocio&&s.id_sistema==='SIS-000001'&&['ACTIVA','PRUEBA'].includes(String(s.estado||'').toUpperCase())))throw new Error('La suscripción no está habilitada.');
+}
+async function obtenerClientesDB(){
+ await clienteVerificarAcceso();
+ const {data,error}=await db.from('clientes').select('id_negocio,id_cliente,nombre,apellido,documento,telefono,email,direccion,localidad,provincia,fecha_alta,estado').eq('id_negocio',perfil.id_negocio).order('fecha_alta',{ascending:false}).limit(1000);
+ if(error)throw error;
+ if((data||[]).some(c=>c.id_negocio!==perfil.id_negocio))throw new Error('RLS devolvió datos de otro negocio. Se bloqueó la operación.');
+ return data||[];
+}
+async function mostrarClientes(boton){
+ seleccionar(boton);clientesBusqueda='';clientesAviso='';clientesCargando=true;
+ $('contenidoPrincipal').innerHTML=`<h1 class="page-title">Clientes</h1><p class="page-subtitle">Gestión de clientes · ${esc(negocio.nombre)}</p><div class="vi-client-toolbar"><input id="clientesBuscar" type="search" placeholder="Buscar por nombre, documento, teléfono..." oninput="clienteBuscarTexto()" aria-label="Buscar clientes"><button class="vi-client-btn" type="button" onclick="abrirClienteFormulario()">+ Nuevo cliente</button><button class="vi-client-btn alt" type="button" onclick="recargarClientes()">Actualizar</button></div><div id="clientesMensaje" class="vi-client-alert" hidden></div><div id="clientesListado" class="vi-client-table-wrap"><p style="padding:25px">Cargando clientes...</p></div><div id="clientesModal"></div>`;
+ await recargarClientes();
+}
+async function recargarClientes(){
+ const lista=$('clientesListado');if(!lista)return;
+ lista.innerHTML='<p style="padding:25px">Consultando PostgreSQL...</p>';
+ try{clientesActuales=await obtenerClientesDB();pintarTablaClientes();}catch(e){lista.innerHTML='';clienteMensaje('No se pudieron cargar los clientes: '+String(e.message||e),true);}
+}
+function pintarTablaClientes(){
+ const lista=$('clientesListado');if(!lista)return;
+ const q=clientesBusqueda.trim().toLocaleLowerCase('es');
+ const items=clientesActuales.filter(c=>!q||[c.id_cliente,c.nombre,c.apellido,c.documento,c.telefono,c.email,c.localidad].join(' ').toLocaleLowerCase('es').includes(q));
+ const activos=clientesActuales.filter(c=>c.estado==='ACTIVO').length;
+ lista.innerHTML=`<div class="vi-client-count" style="padding:15px 15px 0">Mostrando ${items.length} de ${clientesActuales.length} registros · ${activos} activos</div>${items.length?`<table class="vi-client-table"><thead><tr><th>ID</th><th>Nombre y apellido</th><th>Documento</th><th>Teléfono</th><th>Email</th><th>Localidad</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${items.map(c=>`<tr><td>${esc(c.id_cliente)}</td><td><strong>${esc(c.nombre)} ${esc(c.apellido)}</strong></td><td>${esc(c.documento||'—')}</td><td>${esc(c.telefono||'—')}</td><td>${esc(c.email||'—')}</td><td>${esc(c.localidad||'—')}</td><td><span class="vi-client-status ${c.estado==='ACTIVO'?'':'off'}">${esc(c.estado)}</span></td><td><div class="vi-client-actions"><button onclick="verFichaCliente('${esc(c.id_cliente)}')">Ver</button><button onclick="abrirClienteFormulario('${esc(c.id_cliente)}')">Editar</button><button onclick="alternarCliente('${esc(c.id_cliente)}')">${c.estado==='ACTIVO'?'Desactivar':'Activar'}</button></div></td></tr>`).join('')}</tbody></table>`:'<p style="padding:25px;color:#64748b">No hay clientes que coincidan con la búsqueda.</p>'}`;
+}
+function clientePorId(id){return clientesActuales.find(c=>c.id_cliente===id);}
+function cerrarClienteModal(){const m=$('clientesModal');if(m)m.innerHTML='';}
+function abrirClienteFormulario(id=''){
+ const c=id?clientePorId(id):null;if(id&&!c)return clienteMensaje('No se encontró el cliente.',true);
+ const campos=[['nombre','Nombre *'],['apellido','Apellido *'],['documento','Documento'],['telefono','Teléfono'],['email','Correo electrónico'],['direccion','Dirección'],['localidad','Localidad'],['provincia','Provincia']];
+ $('clientesModal').innerHTML=`<div class="vi-client-overlay" role="presentation"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="${id?'Editar':'Nuevo'} cliente"><h2>${id?'Editar cliente':'Nuevo cliente'}</h2><form id="clienteForm" onsubmit="guardarCliente(event,'${esc(id)}')"><div class="vi-client-fields">${campos.map(([k,label])=>`<label>${label}<input name="${k}" ${k==='email'?'type="email"':''} ${k==='nombre'||k==='apellido'?'required maxlength="120"':'maxlength="250"'} value="${esc(c?.[k]||(k==='provincia'?'Córdoba':''))}"></label>`).join('')}</div><div id="clienteModalError" class="vi-client-alert err" hidden></div><div class="vi-client-footer"><button type="button" class="vi-client-btn alt" onclick="cerrarClienteModal()">Cancelar</button><button id="guardarClienteBtn" type="submit" class="vi-client-btn">Guardar</button></div></form></div></div>`;
+}
+async function generarClienteId(){
+ const {data,error}=await db.from('clientes').select('id_cliente').eq('id_negocio',perfil.id_negocio).order('id_cliente',{ascending:false}).limit(1);
+ if(error)throw error;
+ const max=Number((data?.[0]?.id_cliente||'CLI-000000').match(/^CLI-(\d+)$/)?.[1]||0);
+ return 'CLI-'+String(max+1).padStart(6,'0');
+}
+async function guardarCliente(event,id){
+ event.preventDefault();const form=$('clienteForm');if(!form)return;
+ const btn=$('guardarClienteBtn'),err=$('clienteModalError');btn.disabled=true;err.hidden=true;
+ const fd=new FormData(form),v=k=>String(fd.get(k)||'').trim();
+ const datos={nombre:v('nombre'),apellido:v('apellido'),documento:v('documento'),telefono:v('telefono'),email:v('email'),direccion:v('direccion'),localidad:v('localidad'),provincia:v('provincia')};
+ try{
+  if(!datos.nombre||!datos.apellido)throw new Error('Nombre y apellido son obligatorios.');
+  await clienteVerificarAcceso();
+  let error=null;
+  if(id){
+   ({error}=await db.from('clientes').update(datos).eq('id_negocio',perfil.id_negocio).eq('id_cliente',id).select('id_cliente').single());
+  }else{
+   // ID correlativo provisional para la etapa de pruebas. Se reemplazará por una secuencia atómica antes de producción multiusuario.
+   const nuevoId=await generarClienteId();
+   ({error}=await db.from('clientes').insert({...datos,id_negocio:perfil.id_negocio,id_cliente:nuevoId,estado:'ACTIVO'}).select('id_cliente').single());
+  }
+  if(error)throw error;
+  cerrarClienteModal();await recargarClientes();clienteMensaje(id?'Cliente actualizado correctamente.':'Cliente registrado correctamente.');
+ }catch(e){err.textContent='No se pudo guardar: '+String(e.message||e);err.hidden=false;}finally{if(btn.isConnected)btn.disabled=false;}
+}
+function verFichaCliente(id){
+ const c=clientePorId(id);if(!c)return;
+ const campos=[['ID',c.id_cliente],['Nombre',c.nombre],['Apellido',c.apellido],['Documento',c.documento],['Teléfono',c.telefono],['Email',c.email],['Dirección',c.direccion],['Localidad',c.localidad],['Provincia',c.provincia],['Fecha de alta',clienteFecha(c.fecha_alta)],['Estado',c.estado]];
+ $('clientesModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="Ficha de cliente"><h2>Ficha del cliente</h2><div class="vi-client-details">${campos.map(([k,v])=>`<div><small>${esc(k)}</small><strong>${esc(v||'—')}</strong></div>`).join('')}</div><div class="vi-client-footer"><button class="vi-client-btn alt" onclick="cerrarClienteModal()">Cerrar</button><button class="vi-client-btn" onclick="abrirClienteFormulario('${esc(id)}')">Editar</button></div></div></div>`;
+}
+async function alternarCliente(id){
+ const c=clientePorId(id);if(!c)return;
+ const estado=c.estado==='ACTIVO'?'INACTIVO':'ACTIVO';
+ if(!confirm(`¿Querés ${estado==='ACTIVO'?'activar':'desactivar'} a ${c.nombre} ${c.apellido}?`))return;
+ try{await clienteVerificarAcceso();const {data,error}=await db.from('clientes').update({estado}).eq('id_negocio',perfil.id_negocio).eq('id_cliente',id).select('id_cliente').single();if(error)throw error;await recargarClientes();clienteMensaje(`Cliente ${estado==='ACTIVO'?'activado':'desactivado'} correctamente.`);}catch(e){clienteMensaje('No se pudo cambiar el estado: '+String(e.message||e),true);}
+}
+async function actualizarContadorInicio(){
+ const el=$('inicioClientesContador');if(!el||!db||!perfil)return;
+ try{await clienteVerificarAcceso();const {count,error}=await db.from('clientes').select('id_cliente',{count:'exact',head:true}).eq('id_negocio',perfil.id_negocio).eq('estado','ACTIVO');if(error)throw error;if(el.isConnected)el.textContent=String(count??0);}catch(e){if(el.isConnected)el.textContent='—';}
+}
+
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function cerrarSesion(){try{if(db)await db.auth.signOut();}finally{location.assign(ACCESO_URL);}}
 iniciar();
