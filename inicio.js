@@ -26,30 +26,75 @@ async function viHCount(tabla,extra){let q=db.from(tabla).select('*',{count:'exa
 async function viHRows(tabla,cols='*',limit=1000){let out=[],from=0;while(from<5000){let {data,error}=await db.from(tabla).select(cols).eq('id_negocio',perfil.id_negocio).range(from,from+limit-1);if(error)throw error;out.push(...(data||[]));if(!data||data.length<limit)break;from+=limit}return out}
 async function viHSafe(fn){try{return {value:await fn(),error:null}}catch(e){return {value:null,error:String(e?.message||e)}}}
 function viHVal(x,keys){for(let k of keys)if(x?.[k]!==undefined&&x[k]!==null&&x[k]!=='')return x[k];return null}
+// Resumen financiero: consultas de solo lectura, independientes por indicador.
+// No se suman ventas como si fueran cobros, ni gastos pendientes como egresos.
+const viHSuma=(rows,key)=>rows.reduce((s,r)=>s+(Number(r[key])||0),0);
+const viHArHoy=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const viHFechaLocal=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 async function viHCargar(run){
- try{await clienteVerificarAcceso();if(run!==viHome.run)return;
- const [clientes,productos,ventas,presupuestos]=await Promise.all([
- viHSafe(()=>viHCount('clientes',q=>q.eq('estado','ACTIVO'))),
- viHSafe(()=>viHRows('productos','*')),
- viHSafe(()=>viHRows('ventas','*')),
- viHSafe(()=>viHCount('presupuestos',q=>q.eq('estado','PENDIENTE')))
- ]);
- if(run!==viHome.run||!viH$('vhKpis'))return;
- let ahora=new Date(),hoy=viHDate(ahora),mes=hoy.slice(0,7),limite=new Date(ahora);limite.setDate(limite.getDate()-6);
- let confirmadas=ventas.value?ventas.value.filter(v=>['CONFIRMADA','COMPLETADA'].includes(String(v.estado||'').toUpperCase())):[];
- const fechaVenta=v=>String(viHVal(v,['fecha','fecha_venta','fecha_confirmacion','created_at'])||'').slice(0,10);
- const importe=v=>Number(viHVal(v,['total','total_venta','importe_total'])||0);
- let hoyVentas=confirmadas.filter(v=>fechaVenta(v)===hoy),mesVentas=confirmadas.filter(v=>fechaVenta(v).slice(0,7)===mes);
- let totalHoy=hoyVentas.reduce((a,v)=>a+importe(v),0),totalMes=mesVentas.reduce((a,v)=>a+importe(v),0);
- let prod=productos.value||[],activos=prod.filter(p=>String(p.estado||'ACTIVO').toUpperCase()==='ACTIVO');
- let stockBajo=activos.filter(p=>{let stock=Number(viHVal(p,['stock'])||0),min=Number(viHVal(p,['stock_minimo'])||0);return Number.isFinite(stock)&&Number.isFinite(min)&&stock<=min}).length;
- const card=(titulo,valor,nota)=>`<div class="vh-kpi"><span>${titulo}</span><strong>${valor}</strong><small>${nota}</small></div>`;
- viH$('vhKpis').innerHTML=[card('Ventas de hoy',ventas.error?'—':viHM(totalHoy),ventas.error?'No disponible':`${hoyVentas.length} operaciones`),card('Ventas del mes',ventas.error?'—':viHM(totalMes),'Ventas confirmadas'),card('Clientes activos',clientes.error?'—':viHN(clientes.value),'Registrados en tu negocio'),card('Productos activos',productos.error?'—':viHN(activos.length),'En catálogo'),card('Stock bajo',productos.error?'—':viHN(stockBajo),'Stock menor o igual al mínimo'),card('Presupuestos pendientes',presupuestos.error?'—':viHN(presupuestos.value),'Pendientes de resolución'),card('Ventas confirmadas',ventas.error?'—':viHN(confirmadas.length),'En registros consultados'),card('Negocio',viHE(negocio?.nombre||'—'),'Datos de tu sesión')].join('');
- let serie=Array.from({length:7},(_,i)=>{let d=new Date(limite);d.setDate(limite.getDate()+i);let clave=viHDate(d);return {clave,dia:d.toLocaleDateString('es-AR',{weekday:'short'}),total:confirmadas.filter(v=>fechaVenta(v)===clave).reduce((a,v)=>a+importe(v),0)}});
- let max=Math.max(1,...serie.map(x=>x.total));viH$('vhGrafico').innerHTML=ventas.error?`<p class="vh-warn">No se pudieron consultar las ventas: ${viHE(ventas.error)}</p>`:`<div class="vh-bars">${serie.map(x=>`<div class="vh-barbox" title="${viHE(x.clave)}: ${viHE(viHM(x.total))}"><small>${viHE(viHM(x.total))}</small><div class="vh-bar" style="height:${Math.max(x.total?3:0,x.total/max*76)}%"></div><small>${viHE(x.dia)}</small></div>`).join('')}</div>`;
- viH$('vhAlertas').innerHTML=`<div class="vh-alert"><span>Productos con stock bajo</span><b>${productos.error?'—':stockBajo}</b></div><div class="vh-alert"><span>Presupuestos pendientes</span><b>${presupuestos.error?'—':presupuestos.value}</b></div>${[clientes,productos,ventas,presupuestos].filter(x=>x.error).map(x=>`<p class="vh-warn">Indicador no disponible: ${viHE(x.error)}</p>`).join('')}`;
- let ultimas=[...confirmadas].sort((a,b)=>fechaVenta(b).localeCompare(fechaVenta(a))).slice(0,8);
- viH$('vhUltimas').innerHTML=ventas.error?`<p class="vh-warn">${viHE(ventas.error)}</p>`:ultimas.length?`<table class="vh-table"><thead><tr><th>Fecha</th><th>Venta</th><th>Cliente</th><th>Total</th></tr></thead><tbody>${ultimas.map(v=>`<tr><td>${viHE(viHD(fechaVenta(v)))}</td><td>${viHE(viHVal(v,['numero','id_venta'])||'—')}</td><td>${viHE(viHVal(v,['cliente','nombre_cliente'])||'—')}</td><td>${viHE(viHM(importe(v)))}</td></tr>`).join('')}</tbody></table>`:'<p class="vh-note">Todavía no hay ventas confirmadas.</p>';
- viH$('vhResumen').innerHTML=`<div class="vh-alert"><span>Usuario</span><b>${viHE(perfil?.nombre)}</b></div><div class="vh-alert"><span>Rol</span><b>${viHE(perfil?.rol)}</b></div><div class="vh-alert"><span>Ventas de hoy</span><b>${ventas.error?'—':hoyVentas.length}</b></div><p class="vh-note">La información se actualiza al ingresar o al pulsar Actualizar. No se modifica Stock ni Caja.</p>`;
+ try{
+  await clienteVerificarAcceso();if(run!==viHome.run)return;
+  const [clientes,productos,ventas,presupuestos,gastos,cajas,movimientos,cuentas,compras,pagos]=await Promise.all([
+   viHSafe(()=>viHCount('clientes',q=>q.eq('estado','ACTIVO'))),
+   viHSafe(()=>viHRows('productos','estado,stock,stock_minimo')),
+   viHSafe(()=>viHRows('ventas','id_venta,fecha_venta,cliente,total,estado')),
+   viHSafe(()=>viHCount('presupuestos',q=>q.eq('estado','PENDIENTE'))),
+   viHSafe(()=>viHRows('gastos','fecha,fecha_pago,importe,estado')),
+   viHSafe(()=>viHRows('cajas','id_caja,fecha,apertura,cierre,estado,saldo_inicial,efectivo_esperado')),
+   viHSafe(()=>viHRows('movimientos_caja','fecha,tipo,medio_pago,importe')),
+   viHSafe(()=>viHRows('cuentas_cobrar','saldo_pendiente,estado')),
+   viHSafe(()=>viHRows('compras','id_compra,total,estado')),
+   viHSafe(()=>viHRows('pagos_proveedores','id_compra,importe'))
+  ]);
+  if(run!==viHome.run||!viH$('vhKpis'))return;
+  const hoy=viHArHoy(),mes=hoy.slice(0,7),confirmadas=(ventas.value||[]).filter(v=>v.estado==='CONFIRMADA'||v.estado==='COMPLETADA');
+  const fechaVenta=v=>String(v.fecha_venta||'').slice(0,10);
+  const hoyVentas=confirmadas.filter(v=>fechaVenta(v)===hoy),mesVentas=confirmadas.filter(v=>fechaVenta(v).slice(0,7)===mes);
+  const activos=(productos.value||[]).filter(p=>String(p.estado||'ACTIVO').toUpperCase()==='ACTIVO');
+  const stockBajo=activos.filter(p=>p.stock_minimo!=null&&Number(p.stock)<=Number(p.stock_minimo)).length;
+  const gastosMes=(gastos.value||[]).filter(g=>String(g.fecha||'').slice(0,7)===mes&&g.estado!=='ANULADO');
+  const gastosPagados=gastosMes.filter(g=>g.estado==='PAGADO');
+  const gastosPendientes=gastosMes.filter(g=>g.estado==='PENDIENTE');
+  const cobrar=(cuentas.value||[]).filter(c=>c.estado!=='ANULADA').reduce((s,c)=>s+Math.max(0,Number(c.saldo_pendiente)||0),0);
+  const abonado=new Map();(pagos.value||[]).forEach(p=>abonado.set(String(p.id_compra),(abonado.get(String(p.id_compra))||0)+(Number(p.importe)||0)));
+  const porPagar=(compras.value||[]).filter(c=>c.estado==='CONFIRMADA').reduce((s,c)=>s+Math.max(0,(Number(c.total)||0)-(abonado.get(String(c.id_compra))||0)),0);
+  const cajasOrdenadas=[...(cajas.value||[])].sort((a,b)=>String(b.apertura||'').localeCompare(String(a.apertura||'')));
+  const cajaAbierta=cajasOrdenadas.find(c=>c.estado==='ABIERTA');
+  const cajaHoy=cajasOrdenadas.find(c=>String(c.fecha||'').slice(0,10)===hoy);
+  const caja=cajaAbierta||cajaHoy;
+  let efectivo=null,cajaDetalle='Sin caja abierta hoy';
+  if(caja){
+   if(caja.estado==='CERRADA'&&caja.efectivo_esperado!=null){efectivo=Number(caja.efectivo_esperado);cajaDetalle='Última caja cerrada · '+String(caja.fecha||'').slice(0,10);}
+   else if(caja.estado==='ABIERTA'&&movimientos.value){
+    const apertura=new Date(caja.apertura).getTime();
+    const ms=movimientos.value.filter(m=>{const t=new Date(m.fecha).getTime();return Number.isFinite(t)&&t>=apertura&&m.medio_pago==='EFECTIVO';});
+    efectivo=(Number(caja.saldo_inicial)||0)+ms.reduce((s,m)=>s+(m.tipo==='INGRESO'?1:m.tipo==='EGRESO'?-1:0)*(Number(m.importe)||0),0);
+    cajaDetalle='Caja abierta · efectivo esperado';
+   }else cajaDetalle='No se pudieron consultar los movimientos de Caja';
+  }
+  const card=(titulo,valor,nota)=>`<div class="vh-kpi"><span>${viHE(titulo)}</span><strong>${viHE(valor)}</strong><small>${viHE(nota)}</small></div>`;
+  viH$('vhKpis').innerHTML=[
+   card('Ventas de hoy',ventas.error?'—':viHM(viHSuma(hoyVentas,'total')),ventas.error?'No disponible':`${hoyVentas.length} operaciones`),
+   card('Ventas del mes',ventas.error?'—':viHM(viHSuma(mesVentas,'total')),'Facturación confirmada, no cobros'),
+   card('Efectivo en Caja',cajas.error||movimientos.error&&caja?.estado==='ABIERTA'?'—':efectivo===null?'—':viHM(efectivo),cajas.error?'No disponible':cajaDetalle),
+   card('Por cobrar',cuentas.error?'—':viHM(cobrar),'Saldo pendiente de clientes'),
+   card('Por pagar',compras.error||pagos.error?'—':viHM(porPagar),'Compras confirmadas menos pagos'),
+   card('Gastos pagados · mes',gastos.error?'—':viHM(viHSuma(gastosPagados,'importe')),'Gastos operativos abonados'),
+   card('Gastos pendientes · mes',gastos.error?'—':viHM(viHSuma(gastosPendientes,'importe')),'Todavía no pagados'),
+   card('Clientes activos',clientes.error?'—':viHN(clientes.value),'Registrados'),
+   card('Productos activos',productos.error?'—':viHN(activos.length),'En catálogo'),
+   card('Stock bajo',productos.error?'—':viHN(stockBajo),'Stock menor o igual al mínimo'),
+   card('Presupuestos pendientes',presupuestos.error?'—':viHN(presupuestos.value),'Por resolver'),
+   card('Ventas confirmadas',ventas.error?'—':viHN(confirmadas.length),'Registros consultados')
+  ].join('');
+  const serie=Array.from({length:7},(_,i)=>{let d=new Date();d.setDate(d.getDate()-6+i);const clave=viHFechaLocal(d);return {clave,dia:d.toLocaleDateString('es-AR',{weekday:'short'}),total:viHSuma(confirmadas.filter(v=>fechaVenta(v)===clave),'total')}});
+  const max=Math.max(1,...serie.map(s=>s.total));
+  viH$('vhGrafico').innerHTML=ventas.error?`<p class="vh-warn">${viHE(ventas.error)}</p>`:`<div class="vh-bars">${serie.map(x=>`<div class="vh-barbox" title="${viHE(x.clave)}: ${viHE(viHM(x.total))}"><small>${viHE(viHM(x.total))}</small><div class="vh-bar" style="height:${Math.max(x.total?3:0,x.total/max*76)}%"></div><small>${viHE(x.dia)}</small></div>`).join('')}</div>`;
+  const alert=(t,n)=>`<div class="vh-alert"><span>${viHE(t)}</span><b>${viHE(n)}</b></div>`;
+  viH$('vhAlertas').innerHTML=alert('Productos con stock bajo',productos.error?'—':stockBajo)+alert('Presupuestos pendientes',presupuestos.error?'—':presupuestos.value)+alert('Cuentas por cobrar',cuentas.error?'—':viHM(cobrar))+alert('Cuentas por pagar',compras.error||pagos.error?'—':viHM(porPagar))+
+   [clientes,productos,ventas,presupuestos,gastos,cajas,movimientos,cuentas,compras,pagos].filter(x=>x.error).map(x=>`<p class="vh-warn">Dato no disponible: ${viHE(x.error)}</p>`).join('');
+  const ultimas=[...confirmadas].sort((a,b)=>String(b.fecha_venta||'').localeCompare(String(a.fecha_venta||''))).slice(0,8);
+  viH$('vhUltimas').innerHTML=ventas.error?`<p class="vh-warn">${viHE(ventas.error)}</p>`:ultimas.length?`<table class="vh-table"><thead><tr><th>Fecha</th><th>Venta</th><th>Cliente</th><th>Total</th></tr></thead><tbody>${ultimas.map(v=>`<tr><td>${viHE(viHD(fechaVenta(v)))}</td><td>${viHE(v.id_venta)}</td><td>${viHE(v.cliente||'—')}</td><td>${viHE(viHM(v.total))}</td></tr>`).join('')}</tbody></table>`:'<p class="vh-note">Todavía no hay ventas confirmadas.</p>';
+  viH$('vhResumen').innerHTML=alert('Usuario',perfil?.nombre||'—')+alert('Rol',perfil?.rol||'—')+alert('Ventas de hoy',ventas.error?'—':hoyVentas.length)+alert('Gastos del mes',gastos.error?'—':gastosMes.length)+`<p class="vh-note">Las ventas no equivalen a cobros. Caja muestra solo efectivo esperado; no incluye transferencias ni tarjetas. La ganancia no se calcula sin el costo de mercadería vendida.</p>`;
  }catch(e){if(run!==viHome.run)return;const el=viH$('vhKpis');if(el)el.innerHTML=`<div class="vh-panel"><p class="vh-warn">No se pudo cargar Inicio: ${viHE(e?.message||e)}</p></div>`;if(typeof notificarVicora==='function')notificarVicora('Error al cargar Inicio',String(e?.message||e),'error')}
 }
