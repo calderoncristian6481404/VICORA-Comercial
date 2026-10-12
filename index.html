@@ -1805,6 +1805,8 @@ button.vicora-boton-verde,#contenidoPrincipal button.vicora-boton-verde,
 .vicora-limite-tabla{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 8px;color:#64748b;font-size:13px}
 .vicora-limite-tabla[hidden]{display:none!important}
 tbody tr[hidden]{display:none!important}
+</style><style id="vicoraAgregarCompraAzulFinal">
+#comprasModal button.vicora-boton-azul, #contenidoPrincipal button.vicora-boton-azul, button.vicora-boton-azul {background:#2563eb!important;background-color:#2563eb!important;border-color:#2563eb!important;color:#fff!important;}
 </style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
@@ -2511,11 +2513,12 @@ iniciar();
      if(b.closest('.sidebar,.topbar,.vicora-toast'))return;
      const t=norm(b.textContent);
      const esCerrar=/^(cerrar|cancelar)(\s+.*)?$/.test(t);
-     const esAgregar=/^(\+\s*)?agregar\s+(producto|productos)$/.test(t);
+     const esAgregar=/\bagregar\b/.test(t)&&(/producto|articulo|al detalle|a la compra|a compra/.test(t)||!!b.closest('#comprasModal')&&!/proveedor|compra nueva/.test(t));
      const esVenta=t==='confirmar venta';
      const dialogo=b.closest('[role="dialog"],.vi-client-overlay,.vi-client-dialog,.vp-modal,.vp-modal-overlay,.ven-modal,.ven-dialog,.cp-modal,.comp-modal,.modal,.modal-overlay,[class*="modal"],[class*="dialog"]');
      b.classList.toggle('vicora-boton-rojo',!!dialogo&&esCerrar&&['proveedores','pagos'].includes(mod));
      b.classList.toggle('vicora-boton-azul',mod==='compras'&&esAgregar);
+     if(mod==='compras'&&esAgregar){b.style.setProperty('background-color','#2563eb','important');b.style.setProperty('color','#ffffff','important');b.style.setProperty('border-color','#2563eb','important');}
      b.classList.toggle('vicora-boton-verde',mod==='ventas'&&esVenta);
    });
  }
