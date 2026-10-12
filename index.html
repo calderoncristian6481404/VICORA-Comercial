@@ -1774,6 +1774,9 @@ button.vi-accion-actualizar:hover:not(:disabled) { background: #bfdbfe !importan
 #comprasModal .vi-prov-footer .vi-client-btn:disabled{opacity:.5!important;cursor:not-allowed!important}
 @media(max-width:600px){#comprasModal .vi-prov-footer{justify-content:stretch}#comprasModal .vi-prov-footer .vi-client-btn{flex:1 1 135px;max-width:100%}}
 
+
+/* VICORA Gastos */
+.vg-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:15px 0 20px}.vg-kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px}.vg-kpi small{display:block;color:#64748b;margin-bottom:10px}.vg-kpi strong{font-size:clamp(16px,2vw,25px);overflow-wrap:anywhere}.vg-filtros{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 16px}.vg-filtros input,.vg-filtros select,.vi-client-fields select{padding:11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;min-width:130px}.vg-filtros #vgBuscar{flex:1;min-width:190px}.vg-estado{font-size:11px;font-weight:800;border-radius:20px;padding:5px 8px;background:#e2e8f0}.vg-pagado{background:#dcfce7;color:#166534}.vg-pendiente{background:#fef3c7;color:#92400e}#vgOverlay .vi-client-btn.warn{background:#dc2626!important;color:#fff!important;border-color:#dc2626!important}#vgOverlay .vi-client-btn.ok{background:#15803d!important;color:#fff!important;border-color:#15803d!important}@media(max-width:900px){.vg-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.vg-kpis{grid-template-columns:1fr 1fr}.vg-kpi{padding:12px}.vg-filtros>*{width:100%}}
 </style><style id="vicoraAjustesVisuales20261012">
 /* Acciones secundarias coherentes */
 .vicora-boton-rojo{background:#dc2626!important;border:1px solid #dc2626!important;color:white!important;font-weight:700!important}
@@ -1994,6 +1997,8 @@ tbody tr[hidden]{display:none!important}
       </button>
 
 
+      <button type="button" class="menu-item" onclick="mostrarModulo('gastos', this)"><span class="menu-icon">🧾</span><span>Gastos</span></button>
+
       <button type="button" class="menu-item" onclick="mostrarModulo('caja', this)">
         <span class="menu-icon">🏦</span>
         <span>Caja</span>
@@ -2092,7 +2097,7 @@ tbody tr[hidden]{display:none!important}
 
 
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-nav-v2" defer></script><script src="compras.js?v=20261012-nav-v2" defer></script><script src="ventas.js?v=20261012-nav-v2" defer></script><script src="pagos.js?v=20261012-nav-v2" defer></script><script src="cobros.js?v=20261012-clientes-cuenta-v2" defer></script><script src="caja.js?v=20261012-nav-v2" defer></script><script src="reportes.js?v=20261012-rentabilidad-v1" defer></script><script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-nav-v2" defer></script><script src="compras.js?v=20261012-nav-v2" defer></script><script src="ventas.js?v=20261012-nav-v2" defer></script><script src="pagos.js?v=20261012-nav-v2" defer></script><script src="cobros.js?v=20261012-clientes-cuenta-v2" defer></script><script src="caja.js?v=20261012-nav-v2" defer></script><script src="reportes.js?v=20261012-rentabilidad-v1" defer></script><script src="gastos.js?v=20261012-v1" defer></script><script>
 'use strict';
 const SUPABASE_URL='https://nxdimgzcsjnjjdfdpatp.supabase.co';
 const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
@@ -2100,7 +2105,7 @@ const ACCESO_URL='https://calderoncristian6481404.github.io/vicora-acceso/';
 const $=id=>document.getElementById(id);
 let db=null, perfil=null, negocio=null, suscripciones=[];
 let clientesActuales=[],clientesBusqueda='',clientesAviso='',clientesError=false,clientesCargando=false;
-const nombres={clientes:'Clientes',productos:'Productos',proveedores:'Proveedores',ventas:'Ventas',compras:'Compras',caja:'Caja',cobros:'Cobros',pagos:'Pagos',reportes:'Reportes',presupuestos:'Presupuestos'};
+const nombres={clientes:'Clientes',productos:'Productos',proveedores:'Proveedores',ventas:'Ventas',compras:'Compras',caja:'Caja',cobros:'Cobros',pagos:'Pagos',reportes:'Reportes',gastos:'Gastos',presupuestos:'Presupuestos'};
 function mensajeBloqueo(texto){$('guard').innerHTML='';const h=document.createElement('h2');h.textContent='VICORA Comercial';const p=document.createElement('p');p.textContent=texto;const b=document.createElement('button');b.textContent='Volver a VICORA Acceso';b.onclick=()=>location.assign(ACCESO_URL);const c=document.createElement('div');c.append(h,p,b);$('guard').append(c);$('guard').style.display='grid';$('sistema').style.display='none';}
 async function iniciar(){
  try{
@@ -2136,7 +2141,7 @@ async function iniciar(){
 function seleccionar(boton){document.querySelectorAll('.sidebar .menu-item').forEach(b=>b.classList.remove('active'));if(boton)boton.classList.add('active');}
 function aviso(){return '<div class="vi-test-note"><strong>Migración a Supabase.</strong> Clientes, Productos y Proveedores están conectados a PostgreSQL. Los demás módulos siguen pendientes. Google Apps Script y Sheets no se modifican.</div>';}
 function mostrarInicio(boton){seleccionar(boton);const subs=suscripciones.map(s=>s.estado).join(', ');$('contenidoPrincipal').innerHTML=`<section class="vi-home"><div class="vi-heading"><div><h1>Panel de inicio</h1><p>Resumen de ${esc(negocio.nombre)}</p></div></div>${aviso()}<div class="vi-tiles"><div class="vi-tile"><span class="vi-muted">Clientes</span><b id="inicioClientesContador">—</b><small class="vi-muted">Clientes activos en PostgreSQL</small></div><div class="vi-tile"><span class="vi-muted">Productos</span><b id="inicioProductosContador">—</b><small class="vi-muted">Productos activos en PostgreSQL</small></div><div class="vi-tile"><span class="vi-muted">Ventas</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div><div class="vi-tile"><span class="vi-muted">Pendientes</span><b>—</b><small class="vi-muted">Pendiente de conexión</small></div></div><div class="vi-module-placeholder" style="margin-top:20px"><h2>Mi negocio</h2><p><strong>Usuario:</strong> ${esc(perfil.nombre)} (${esc(perfil.id_usuario)})</p><p><strong>Negocio:</strong> ${esc(negocio.nombre)} (${esc(negocio.id_negocio)})</p><p><strong>Rol:</strong> ${esc(perfil.rol)}</p><p><strong>Suscripción:</strong> ${esc(subs)}</p><span class="vi-status">Sesión validada con Supabase Auth</span></div></section>`;actualizarContadorInicio();actualizarContadorProductosInicio();}
-function mostrarModulo(modulo,boton){if(modulo==='cobros'){mostrarCobros(boton);return;}if(modulo==='clientes'){mostrarClientes(boton);return;}if(modulo==='productos'){mostrarProductos(boton);return;}if(modulo==='proveedores'){mostrarProveedores(boton);return;}if(modulo==='compras'){mostrarCompras(boton);return;}if(modulo==='ventas'){mostrarVentas(boton);return;}if(modulo==='pagos'){mostrarPagos(boton);return;}if(modulo==='caja'){mostrarCaja(boton);return;}if(modulo==='reportes'){mostrarReportes(boton);return;}seleccionar(boton);const nombre=nombres[modulo]||'Módulo';$('contenidoPrincipal').innerHTML=`<h1 class="page-title">${esc(nombre)}</h1><p class="page-subtitle">VICORA Comercial · ${esc(negocio.nombre)}</p>${aviso()}<div class="vi-module-placeholder"><h2>${esc(nombre)}</h2><p>La pantalla de ${esc(nombre.toLowerCase())} se conectará a PostgreSQL en una próxima etapa. Por seguridad, las operaciones están deshabilitadas durante esta prueba.</p><span class="vi-status">Pendiente de migración</span></div>`;}
+function mostrarModulo(modulo,boton){if(modulo==='gastos'){mostrarGastos(boton);return;}if(modulo==='cobros'){mostrarCobros(boton);return;}if(modulo==='clientes'){mostrarClientes(boton);return;}if(modulo==='productos'){mostrarProductos(boton);return;}if(modulo==='proveedores'){mostrarProveedores(boton);return;}if(modulo==='compras'){mostrarCompras(boton);return;}if(modulo==='ventas'){mostrarVentas(boton);return;}if(modulo==='pagos'){mostrarPagos(boton);return;}if(modulo==='caja'){mostrarCaja(boton);return;}if(modulo==='reportes'){mostrarReportes(boton);return;}seleccionar(boton);const nombre=nombres[modulo]||'Módulo';$('contenidoPrincipal').innerHTML=`<h1 class="page-title">${esc(nombre)}</h1><p class="page-subtitle">VICORA Comercial · ${esc(negocio.nombre)}</p>${aviso()}<div class="vi-module-placeholder"><h2>${esc(nombre)}</h2><p>La pantalla de ${esc(nombre.toLowerCase())} se conectará a PostgreSQL en una próxima etapa. Por seguridad, las operaciones están deshabilitadas durante esta prueba.</p><span class="vi-status">Pendiente de migración</span></div>`;}
 
 // Notificaciones modernas y reutilizables en VICORA.
 function notificarVicora(titulo, mensaje='', tipo='info'){
@@ -2606,7 +2611,7 @@ iniciar();
 <script id="vicoraNavegacionAtrasMovilV2">
 (function(){
  'use strict';
- const modulos=new Set(['inicio','clientes','productos','proveedores','ventas','compras','caja','cobros','pagos','reportes','presupuestos']);
+ const modulos=new Set(['inicio','clientes','productos','proveedores','ventas','compras','caja','cobros','pagos','reportes','gastos','presupuestos']);
  let restaurando=false, preparado=false;
  const panelListo=()=>document.getElementById('sistema')?.style.display==='block' && !!window.perfil;
  function boton(dest){
