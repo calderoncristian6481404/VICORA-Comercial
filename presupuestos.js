@@ -15,6 +15,13 @@ function preEstilo(){if(pre$('preCss'))return;let s=document.createElement('styl
 #preModal [data-pre-estado="RECHAZADO"] {background:#f87171!important;color:#fff!important;border-color:#f87171!important}
 #preModal [data-pre-estado="ANULADO"] {background:#991b1b!important;color:#fff!important;border-color:#991b1b!important}
 #preModal #preCerrar:hover,#preModal #preCancelar:hover,#preModal #preImprimir:hover,#preModal #preEditar:hover,#preModal [data-pre-estado]:hover {filter:brightness(.88)}
+
+/* Conversión a venta: botones de salida rojos, aun con estilos globales */
+#preModal #preConvCerrar, #preModal #preConvCancelar {background:#dc2626!important;color:#ffffff!important;border:1px solid #dc2626!important}
+#preModal #preConvCerrar:hover, #preModal #preConvCancelar:hover {background:#b91c1c!important;border-color:#b91c1c!important}
+/* Diálogo general de confirmación: Cancelar en rojo */
+.vi-confirm-overlay .vi-confirm-cancel {background:#dc2626!important;color:#ffffff!important;border:1px solid #dc2626!important}
+.vi-confirm-overlay .vi-confirm-cancel:hover {background:#b91c1c!important;border-color:#b91c1c!important}
 `;document.head.appendChild(s);}
 async function preAcceso(){await clienteVerificarAcceso();if(!db||!perfil?.id_negocio)throw Error('Sesión no disponible');}
 async function mostrarPresupuestos(boton){seleccionar(boton);preEstilo();preUI.visibles=15;pre$('contenidoPrincipal').innerHTML=`<div class="module-header"><div><h1 class="page-title">Presupuestos</h1><p class="page-subtitle">Cotizaciones comerciales · ${preEsc(negocio.nombre)}</p></div><button class="vi-client-btn" id="preNuevo">+ Nuevo presupuesto</button></div><div class="pre-card"><div class="pre-row"><input class="pre-in" style="flex:1;min-width:180px" id="preBuscar" placeholder="Buscar número o cliente"><select class="pre-in" style="width:auto" id="preFiltro"><option value="">Todos los estados</option><option>PENDIENTE</option><option>APROBADO</option><option>RECHAZADO</option><option>ANULADO</option></select><button class="vi-client-btn alt" id="preActualizar">Actualizar</button></div><p class="pre-muted" id="preContador" style="margin:12px 0"></p><div id="preListado"></div></div><div id="preModal"></div>`;pre$('preNuevo').onclick=preNuevo;pre$('preBuscar').oninput=()=>{preUI.visibles=15;prePintar();};pre$('preFiltro').onchange=()=>{preUI.visibles=15;prePintar();};pre$('preActualizar').onclick=preCargar;await preCargar();}
