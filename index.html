@@ -2092,7 +2092,7 @@ tbody tr[hidden]{display:none!important}
 
 
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-nav-v2" defer></script><script src="compras.js?v=20261012-nav-v2" defer></script><script src="ventas.js?v=20261012-nav-v2" defer></script><script src="pagos.js?v=20261012-nav-v2" defer></script><script src="cobros.js?v=20261012-cobros-v1" defer></script><script src="caja.js?v=20261012-nav-v2" defer></script><script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-nav-v2" defer></script><script src="compras.js?v=20261012-nav-v2" defer></script><script src="ventas.js?v=20261012-nav-v2" defer></script><script src="pagos.js?v=20261012-nav-v2" defer></script><script src="cobros.js?v=20261012-clientes-cuenta-v2" defer></script><script src="caja.js?v=20261012-nav-v2" defer></script><script>
 'use strict';
 const SUPABASE_URL='https://nxdimgzcsjnjjdfdpatp.supabase.co';
 const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
@@ -2227,11 +2227,38 @@ async function guardarCliente(event,id){
   cerrarClienteModal();await recargarClientes();notificarVicora(id?'Cliente actualizado':'Cliente registrado',id?'Los cambios se guardaron correctamente en PostgreSQL.':'El cliente se guardó correctamente en PostgreSQL.','exito');
  }catch(e){err.textContent='No se pudo guardar: '+String(e.message||e);err.hidden=false;notificarVicora('No se pudo guardar el cliente',String(e.message||e),'error');}finally{if(btn.isConnected)btn.disabled=false;}
 }
-function verFichaCliente(id){
+async function verFichaCliente(id){
  const c=clientePorId(id);if(!c)return;
+ const modal=$('clientesModal');if(!modal)return;
  const campos=[['ID',c.id_cliente],['Nombre',c.nombre],['Apellido',c.apellido],['Documento',c.documento],['Teléfono',c.telefono],['Email',c.email],['Dirección',c.direccion],['Localidad',c.localidad],['Provincia',c.provincia],['Fecha de alta',clienteFecha(c.fecha_alta)],['Estado',c.estado]];
- $('clientesModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="Ficha de cliente"><h2>Ficha del cliente</h2><div class="vi-client-details">${campos.map(([k,v])=>`<div><small>${esc(k)}</small><strong>${esc(v||'—')}</strong></div>`).join('')}</div><div class="vi-client-footer"><button class="vi-client-btn alt" onclick="cerrarClienteModal()">Cerrar</button><button class="vi-client-btn" onclick="abrirClienteFormulario('${esc(id)}')">Editar</button></div></div></div>`;
+ const nombre=String(c.nombre||'')+' '+String(c.apellido||'');
+ modal.innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="Ficha de cliente" style="max-width:800px"><h2>Ficha del cliente</h2><div class="vi-client-details">${campos.map(([k,v])=>`<div><small>${esc(k)}</small><strong>${esc(v||'—')}</strong></div>`).join('')}</div><section style="margin-top:20px"><h3>Cuenta corriente</h3><div id="clienteCuentaDetalle">Consultando saldo y movimientos...</div></section><div class="vi-client-footer"><button class="vi-client-btn alt" style="background:#dc2626!important;border-color:#dc2626!important;color:white!important" onclick="cerrarClienteModal()">Cerrar</button><button class="vi-client-btn" onclick="abrirClienteFormulario('${esc(id)}')">Editar</button></div></div></div>`;
+ const destino=$('clienteCuentaDetalle');
+ try{
+  await clienteVerificarAcceso();
+  const [rc,rh]=await Promise.all([
+   db.from('cuentas_cobrar').select('id_venta,total,total_cobrado,saldo_pendiente,estado,fecha_alta').eq('id_negocio',perfil.id_negocio).eq('id_cliente',id).order('fecha_alta',{ascending:false}).limit(500),
+   db.from('cobros_clientes').select('id_cobro,id_venta,fecha_cobro,importe,medio_pago,estado').eq('id_negocio',perfil.id_negocio).eq('id_cliente',id).order('fecha_cobro',{ascending:false}).limit(500)
+  ]);
+  if(rc.error)throw rc.error;if(rh.error)throw rh.error;
+  if(!destino.isConnected)return;
+  const cuentas=(rc.data||[]).filter(x=>x.estado!=='ANULADA');
+  const cobros=(rh.data||[]).filter(x=>x.estado!=='ANULADO');
+  const saldo=cuentas.reduce((v,x)=>v+Number(x.saldo_pendiente||0),0);
+  const money=v=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(v)||0);
+  const fecha=v=>v?new Date(v).toLocaleDateString('es-AR'):'—';
+  const pendientes=cuentas.filter(x=>Number(x.saldo_pendiente)>0);
+  destino.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin:12px 0"><div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;flex:1;min-width:130px"><small>Saldo pendiente</small><div style="font-weight:800;color:#9a3412">${money(saldo)}</div></div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;flex:1;min-width:130px"><small>Ventas con deuda</small><div style="font-weight:800">${pendientes.length}</div></div><div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px;flex:1;min-width:130px"><small>Cobros registrados</small><div style="font-weight:800">${cobros.length}</div></div></div><h4 style="margin:15px 0 8px">Ventas del cliente</h4>${cuentas.length?`<div style="overflow-x:auto"><table class="vi-client-table"><thead><tr><th>Venta</th><th>Fecha</th><th>Total</th><th>Cobrado</th><th>Saldo</th><th>Acción</th></tr></thead><tbody>${cuentas.slice(0,15).map(x=>`<tr><td>${esc(x.id_venta)}</td><td>${fecha(x.fecha_alta)}</td><td>${money(x.total)}</td><td>${money(x.total_cobrado)}</td><td><strong>${money(x.saldo_pendiente)}</strong></td><td>${Number(x.saldo_pendiente)>0?`<button class="vi-client-btn" type="button" onclick="clienteCobrarVenta('${esc(x.id_venta)}')">Cobrar</button>`:'Sin deuda'}</td></tr>`).join('')}</tbody></table></div>${cuentas.length>15?`<small>Mostrando 15 de ${cuentas.length} ventas. Consultá el resto en Cobros.</small>`:''}`:'<p>No tiene ventas registradas en cuenta corriente.</p>'}<h4 style="margin:15px 0 8px">Últimos cobros</h4>${cobros.length?`<div style="overflow-x:auto"><table class="vi-client-table"><thead><tr><th>Fecha</th><th>Venta</th><th>Medio</th><th>Importe</th></tr></thead><tbody>${cobros.slice(0,15).map(x=>`<tr><td>${fecha(x.fecha_cobro)}</td><td>${esc(x.id_venta)}</td><td>${esc(x.medio_pago)}</td><td>${money(x.importe)}</td></tr>`).join('')}</tbody></table></div>${cobros.length>15?`<small>Mostrando los últimos 15 cobros.</small>`:''}`:'<p>No tiene cobros registrados.</p>'}`;
+ }catch(e){if(destino.isConnected)destino.innerHTML=`<div class="vi-client-alert err">No se pudo consultar la cuenta corriente: ${esc(e.message||e)}</div>`;}
 }
+async function clienteCobrarVenta(idVenta){
+ cerrarClienteModal();
+ const boton=Array.from(document.querySelectorAll('.sidebar .menu-item')).find(x=>(x.getAttribute('onclick')||'').includes("mostrarModulo('cobros'"));
+ if(!boton||typeof mostrarModulo!=='function'||typeof vcCargar!=='function')return notificarVicora('Cobros no disponible','No se pudo abrir el módulo Cobros.','error');
+ mostrarModulo('cobros',boton);
+ try{await vcCargar();if(typeof vcAbrirCobro==='function')vcAbrirCobro(idVenta);}catch(e){notificarVicora('No se pudo abrir el cobro',String(e.message||e),'error');}
+}
+
 function confirmarVicora(titulo,descripcion,esPeligroso=false){
  return new Promise(resolve=>{
   const overlay=document.createElement('div');overlay.className='vi-confirm-overlay';
