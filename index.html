@@ -1615,6 +1615,31 @@
 .vi-client-toolbar > input + .vi-client-btn,.vi-prov-toolbar > input + .vi-client-btn{margin-left:auto}
 .vi-client-toolbar > .vi-client-btn,.vi-prov-toolbar > .vi-client-btn{white-space:nowrap}
 @media(max-width:600px){.vi-client-toolbar > input,.vi-prov-toolbar > input{flex-basis:100%;max-width:none}.vi-client-toolbar > input + .vi-client-btn,.vi-prov-toolbar > input + .vi-client-btn{margin-left:auto}}
+
+/* =====================================================
+   VICORA · COLORES DE ACCIONES (solo presentación)
+   ===================================================== */
+.vi-accion-color {
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 7px rgba(15,23,42,.12);
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease !important;
+}
+.vi-accion-color:hover:not(:disabled) {
+  filter: brightness(.91);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(15,23,42,.18);
+}
+.vi-accion-color:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.vi-accion-color:disabled { opacity:.5; cursor:not-allowed; box-shadow:none; }
+.vi-accion-ver { background:#2563eb !important; }
+.vi-accion-editar { background:#d97706 !important; }
+.vi-accion-desactivar, .vi-accion-cancelar, .vi-accion-anular { background:#dc2626 !important; }
+.vi-accion-ajustar { background:#7c3aed !important; }
+.vi-accion-activar, .vi-accion-actualizar { background:#059669 !important; }
+/* También se aplican a confirmaciones y botones renderizados desde otros módulos. */
 </style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
@@ -2246,5 +2271,51 @@ async function actualizarContadorProductosInicio(){
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function cerrarSesion(){try{if(db)await db.auth.signOut();}finally{location.assign(ACCESO_URL);}}
+
+/* VICORA · Identifica acciones por su texto visible, también en módulos externos.
+   No cambia eventos, atributos de datos ni lógica de los botones. */
+(function vicoraColorearBotones(){
+  const mapa = [
+    [/^ver$/i,'ver'],
+    [/^editar$/i,'editar'],
+    [/^desactivar$/i,'desactivar'],
+    [/^activar$/i,'activar'],
+    [/^ajustar\s+stock$/i,'ajustar'],
+    [/^cancelar$/i,'cancelar'],
+    [/^anular(?:\s+\w+)?$/i,'anular'],
+    [/^actualizar$/i,'actualizar']
+  ];
+  const clases = ['vi-accion-color',...mapa.map(x=>'vi-accion-'+x[1])];
+  function pintar(raiz){
+    const botones = raiz.nodeType===1 && raiz.matches?.('button')
+      ? [raiz,...raiz.querySelectorAll('button')]
+      : raiz.querySelectorAll ? raiz.querySelectorAll('button') : [];
+    for(const boton of botones){
+      const texto=(boton.textContent||'').replace(/\s+/g,' ').trim();
+      const tipo=mapa.find(([patron])=>patron.test(texto))?.[1];
+      if(!tipo) continue;
+      // Evitar alterar botones del menú de navegación.
+      if(boton.closest('.sidebar')) continue;
+      const deseada='vi-accion-'+tipo;
+      if(boton.classList.contains(deseada)) continue;
+      boton.classList.remove(...clases);
+      boton.classList.add('vi-accion-color',deseada);
+    }
+  }
+  pintar(document);
+  const observador = new MutationObserver(cambios=>{
+    for(const cambio of cambios){
+      if(cambio.type==='characterData'){
+        const boton=cambio.target.parentElement?.closest('button');
+        if(boton) pintar(boton);
+      }
+      for(const nodo of cambio.addedNodes){
+        if(nodo.nodeType===1) pintar(nodo);
+      }
+    }
+  });
+  observador.observe(document.body,{childList:true,subtree:true,characterData:true});
+})();
+
 iniciar();
 </script></body></html>
