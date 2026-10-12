@@ -2092,7 +2092,7 @@ tbody tr[hidden]{display:none!important}
 
 
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-listas-v5" defer></script><script src="compras.js?v=20261012-listas-v5" defer></script><script src="ventas.js?v=20261012-listas-v5" defer></script><script src="pagos.js?v=20261012-listas-v5" defer></script><script src="caja.js?v=20261012-listas-v5" defer></script><script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-nav-v2" defer></script><script src="compras.js?v=20261012-nav-v2" defer></script><script src="ventas.js?v=20261012-nav-v2" defer></script><script src="pagos.js?v=20261012-nav-v2" defer></script><script src="caja.js?v=20261012-nav-v2" defer></script><script>
 'use strict';
 const SUPABASE_URL='https://nxdimgzcsjnjjdfdpatp.supabase.co';
 const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
@@ -2576,44 +2576,58 @@ iniciar();
 })();
 </script>
 
-<script id="vicoraNavegacionAtrasMovilV1">
-/* Navegación interna: Atrás vuelve al panel de Inicio, no a la página de autenticación. */
+<script id="vicoraNavegacionAtrasMovilV2">
 (function(){
  'use strict';
- let restaurando=false;
- const esPanel=()=>!!document.getElementById('contenidoPrincipal');
- function botonInicio(){return document.querySelector('.sidebar .menu-item[onclick*="mostrarInicio"]');}
- function botonModulo(modulo){return Array.from(document.querySelectorAll('.sidebar .menu-item[onclick]')).find(b=>b.getAttribute('onclick').includes("mostrarModulo('"+modulo+"'"));}
- function destino(boton){
-   const fn=boton?.getAttribute('onclick')||'';
-   if(fn.includes('mostrarInicio('))return 'inicio';
-   const m=fn.match(/mostrarModulo\(['"]([^'"]+)['"]/);
-   return m?m[1]:null;
+ const modulos=new Set(['inicio','clientes','productos','proveedores','ventas','compras','caja','cobros','pagos','reportes','presupuestos']);
+ let restaurando=false, preparado=false;
+ const panelListo=()=>document.getElementById('sistema')?.style.display==='block' && !!window.perfil;
+ function boton(dest){
+   const botones=Array.from(document.querySelectorAll('.sidebar .menu-item[onclick]'));
+   return botones.find(b=>dest==='inicio'?b.getAttribute('onclick').includes('mostrarInicio('):b.getAttribute('onclick').includes("mostrarModulo('"+dest+"'"));
+ }
+ function pantalla(){const x=String(location.hash||'').replace(/^#vicora-/, '');return modulos.has(x)?x:'inicio';}
+ function direccion(dest){return location.pathname+location.search+'#vicora-'+dest;}
+ function preparar(){
+   if(preparado||!panelListo())return;
+   preparado=true;
+   // El historial necesita una entrada real de Inicio y otra por cada módulo.
+   history.replaceState({...history.state,vicoraPantalla:'inicio'},'',direccion('inicio'));
+ }
+ function ir(dest){
+   if(!preparado||restaurando||!modulos.has(dest))return;
+   if(pantalla()!==dest)history.pushState({...history.state,vicoraPantalla:dest},'',direccion(dest));
  }
  function mostrar(dest){
-   if(!esPanel())return;
-   const inicio=botonInicio();
-   if(dest==='inicio'){if(typeof mostrarInicio==='function')mostrarInicio(inicio);return;}
-   const boton=botonModulo(dest);
-   if(boton&&typeof mostrarModulo==='function')mostrarModulo(dest,boton);
-   else if(typeof mostrarInicio==='function')mostrarInicio(inicio);
- }
- document.addEventListener('click',function(ev){
-   if(restaurando||!esPanel())return;
-   const b=ev.target.closest('.sidebar .menu-item[onclick]');
-   if(!b)return;
-   const dest=destino(b);if(!dest)return;
-   try{
-     if(!history.state?.vicoraPantalla){history.replaceState({...(history.state||{}),vicoraPantalla:'inicio'},'',location.href);}
-     if(history.state?.vicoraPantalla!==dest){history.pushState({vicoraPantalla:dest},'',location.href);}
-   }catch(e){console.warn('Historial VICORA:',e);}
- },true);
- window.addEventListener('popstate',function(ev){
-   if(!esPanel())return;
+   if(!panelListo())return;
+   const b=boton(dest);
    restaurando=true;
-   try{mostrar(ev.state?.vicoraPantalla||'inicio');}
-   finally{restaurando=false;}
- });
+   try{if(dest==='inicio')window.mostrarInicio?.(b);else window.mostrarModulo?.(dest,b);}finally{restaurando=false;}
+ }
+ // Los onclick del menú llaman a estas funciones. Se interceptan en la función
+ // original, no mediante clicks, para cubrir todos los módulos.
+ function conectar(){
+   if(typeof window.mostrarModulo!=='function'||typeof window.mostrarInicio!=='function')return false;
+   if(window.mostrarModulo.__vicoraNavV2)return true;
+   const originalModulo=window.mostrarModulo,originalInicio=window.mostrarInicio;
+   const modulo=function(dest,b){preparar();ir(dest);return originalModulo.call(this,dest,b);};
+   modulo.__vicoraNavV2=true;
+   window.mostrarModulo=modulo;
+   window.mostrarInicio=function(b){preparar();ir('inicio');return originalInicio.call(this,b);};
+   return true;
+ }
+ function alVolver(){if(!preparado||!panelListo())return;mostrar(pantalla());}
+ window.addEventListener('popstate',alVolver);
+ window.addEventListener('hashchange',alVolver);
+ function iniciar(){
+   conectar();
+   const s=document.getElementById('sistema');
+   if(!s)return;
+   const observer=new MutationObserver(()=>{if(panelListo()){preparar();observer.disconnect();}});
+   observer.observe(s,{attributes:true,attributeFilter:['style']});
+   preparar();
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
 })();
 </script>
 </body></html>
