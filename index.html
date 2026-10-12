@@ -2475,11 +2475,11 @@ iniciar();
   if(busy)return;busy=true;
   try{
    const r=root();if(!r)return;
+   const modulo=r.querySelector('.page-title')?.textContent?.toLocaleLowerCase('es')||'';
    // Solamente botones de acción de modales, no filtros ni operaciones destructivas.
    r.querySelectorAll('button').forEach(b=>{
     const t=(b.textContent||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es');
     const modal=b.closest('.vi-client-overlay,.vi-client-dialog,.vp-modal-overlay,.vp-modal,.ven-modal,.ven-dialog,[role="dialog"]');
-    const modulo=r.querySelector('.page-title')?.textContent?.toLocaleLowerCase('es')||'';
     const pago=modulo.includes('pagos a proveedores')||!!b.closest('.vp-modal');
     const proveedor=modulo.includes('proveedor')&&!pago;
     const compra=modulo.includes('compra')&&!pago;
