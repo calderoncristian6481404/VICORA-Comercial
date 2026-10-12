@@ -163,6 +163,7 @@ async function venEjecutarAnulacion(id){
 // ============================================================
 let venDevolucionEnProceso=false;
 let venContextoDevolucion=null;
+let venDevDatosFinancieros=null;
 
 async function venAbrirDevolucionParcial(idVenta){
   try{
@@ -171,6 +172,18 @@ async function venAbrirDevolucionParcial(idVenta){
     if(error)throw error;
     if(!data?.ok)throw new Error(data?.mensaje||'No se pudo consultar la devolución.');
     venContextoDevolucion=data;
+    venDevDatosFinancieros=null;
+    // Datos solo para la vista previa; Supabase sigue validando el importe definitivo.
+    try{
+      const [v,d,c,r]=await Promise.all([
+        db.from('ventas').select('total').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta).single(),
+        db.from('ventas_detalle').select('id_producto,cantidad,subtotal').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta),
+        db.from('cuentas_cobrar').select('saldo_pendiente').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta).maybeSingle(),
+        db.from('devoluciones_detalle').select('credito').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta)
+      ]);
+      if([v,d,c,r].some(x=>x.error))throw new Error('No se pudo consultar la vista previa');
+      venDevDatosFinancieros={total:Number(v.data?.total||0),detalles:d.data||[],deuda:Number(c.data?.saldo_pendiente||0),creditoPrevio:(r.data||[]).reduce((a,x)=>a+Number(x.credito||0),0)};
+    }catch(e){console.warn('Vista previa de reintegro no disponible:',e);}
     const productos=(data.productos||[]).filter(p=>Number(p.disponible)>0);
     if(!productos.length){venToast('Sin productos disponibles','Todos los artículos de esta venta ya fueron devueltos.','advertencia');return;}
     const m=$('venModal');if(!m)return;
@@ -185,8 +198,9 @@ async function venAbrirDevolucionParcial(idVenta){
       <textarea id="venDevMotivo" class="ven-input" maxlength="300" rows="3" placeholder="Explicá por qué se devuelve"></textarea>
       <label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px"><input type="checkbox" id="venDevReponer" checked> Reincorporar los productos al stock disponible</label>
       <p class="ven-muted" style="margin-top:6px">Desmarcá esta opción si los productos están dañados o no pueden volver a venderse.</p>
-      <label class="ven-label" for="venDevMedio" style="margin-top:14px">Medio de reintegro (si corresponde)</label>
-      <select class="ven-select" id="venDevMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select>
+      <div id="venDevReintegroInfo" class="ven-info" style="margin-top:14px">Calculando si corresponde un reintegro...</div>
+      <div id="venDevMedioWrap" style="display:none"><label class="ven-label" for="venDevMedio">¿Cómo vas a devolver el dinero al cliente?</label>
+      <select class="ven-select" id="venDevMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select></div>
       <div class="ven-info" id="venDevResumen">Seleccioná al menos un producto.</div></div>
       <div class="ven-modal-foot"><button class="vi-client-btn alt" id="venDevCancelar">Cancelar</button><button class="vi-client-btn ok" id="venDevConfirmar">Confirmar devolución</button></div>
       </div></div>`;
@@ -208,13 +222,44 @@ function venSeleccionDevolucion(){
   }
   return items;
 }
+function venEstimarDevolucion(items){
+  const f=venDevDatosFinancieros;
+  if(!f)return null;
+  const bruto=f.detalles.reduce((s,p)=>s+Number(p.subtotal||0),0);
+  if(bruto<=0||f.total<=0)return null;
+  let seleccionado=0;
+  for(const item of items){
+    const lineas=f.detalles.filter(p=>String(p.id_producto)===String(item.id_producto));
+    const cant=lineas.reduce((s,p)=>s+Number(p.cantidad||0),0);
+    if(cant<=0)return null;
+    seleccionado+=lineas.reduce((s,p)=>s+Number(p.subtotal||0),0)*item.cantidad/cant;
+  }
+  // Vista previa orientativa. La función SQL decide el importe final con los redondeos.
+  const credito=Math.max(0,venN(f.total*seleccionado/bruto));
+  return {credito,deudaReducida:Math.min(credito,f.deuda),reintegro:Math.max(0,venN(credito-f.deuda))};
+}
 function venActualizarResumenDevolucion(){
-  const el=$('venDevResumen');if(!el)return;
+  const el=$('venDevResumen'),info=$('venDevReintegroInfo'),wrap=$('venDevMedioWrap');
+  if(!el)return;
+  if(wrap)wrap.style.display='none';
   try{
     const items=venSeleccionDevolucion();
-    if(!items.length){el.textContent='Seleccioná al menos un producto.';return;}
-    el.textContent=`${items.length} producto(s) seleccionado(s). El crédito, la reducción de deuda y el reintegro definitivo se calcularán y validarán en Supabase al confirmar.`;
-  }catch(e){el.textContent=venError(e);}
+    if(!items.length){el.textContent='Seleccioná al menos un producto.';if(info)info.textContent='Elegí los productos para saber si corresponde devolver dinero.';return;}
+    const calculo=venEstimarDevolucion(items);
+    if(!calculo){
+      el.textContent='Supabase calculará los importes definitivos al confirmar.';
+      if(info)info.textContent='No se pudo calcular la vista previa. Elegí el medio solo si Supabase determina que corresponde un reintegro.';
+      if(wrap)wrap.style.display='block';
+      return;
+    }
+    el.textContent=`Crédito estimado: ${venDinero(calculo.credito)} · Deuda a reducir: ${venDinero(calculo.deudaReducida)}.`;
+    if(calculo.reintegro>0){
+      if(info)info.textContent=`Reintegro estimado: ${venDinero(calculo.reintegro)}. Seleccioná cómo entregarás el dinero.`;
+      if(wrap)wrap.style.display='block';
+    }else{
+      if(info)info.textContent='Sin reintegro de dinero: el importe se descontará de la cuenta corriente (o no corresponde devolver efectivo).';
+    }
+  }catch(e){el.textContent=venError(e);if(info)info.textContent='Revisá las cantidades seleccionadas.';}
 }
 async function venConfirmarDevolucionParcial(idVenta){
   if(venDevolucionEnProceso)return;
@@ -223,7 +268,7 @@ async function venConfirmarDevolucionParcial(idVenta){
   if(!items.length)return venToast('Sin productos','Seleccioná alguna cantidad para devolver.','advertencia');
   const motivo=($('venDevMotivo')?.value||'').trim();
   if(!motivo)return venToast('Motivo obligatorio','Ingresá el motivo de la devolución.','advertencia');
-  const medio=$('venDevMedio')?.value;
+  const medio=$('venDevMedioWrap')?.style.display==='none'?null:$('venDevMedio')?.value;
   const reponer=$('venDevReponer')?.checked===true;
   const ok=await confirmarVicora('Confirmar devolución',`¿Registrar la devolución de ${items.length} producto(s)? ${reponer?'Se reincorporarán al stock.':'No se reincorporarán al stock.'} Supabase calculará el ajuste económico.`);
   if(!ok)return;
