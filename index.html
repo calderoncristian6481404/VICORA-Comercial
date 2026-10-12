@@ -1795,7 +1795,17 @@ button.vi-accion-actualizar:hover:not(:disabled) { background: #bfdbfe !importan
 #contenidoPrincipal .vicora-boton-verde{background:#15803d!important;border-color:#15803d!important;color:#fff!important}
 #comprasModal button[data-action*="agregar"],#comprasModal button[id*="Agregar"]{background:#2563eb!important;color:white!important;border-color:#2563eb!important}
 </style>
-</head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
+<style id="vicoraColoresAccionesV5">
+button.vicora-boton-rojo,button.vicora-boton-rojo.vi-accion-cancelar,
+#contenidoPrincipal button.vicora-boton-rojo{background:#dc2626!important;background-color:#dc2626!important;color:#fff!important;border:1px solid #dc2626!important}
+button.vicora-boton-rojo:hover{background:#b91c1c!important;background-color:#b91c1c!important}
+button.vicora-boton-azul,#contenidoPrincipal button.vicora-boton-azul{background:#2563eb!important;background-color:#2563eb!important;color:#fff!important;border:1px solid #2563eb!important}
+button.vicora-boton-verde,#contenidoPrincipal button.vicora-boton-verde,
+#contenidoPrincipal #venConfirmar{background:#15803d!important;background-color:#15803d!important;color:#fff!important;border:1px solid #15803d!important}
+.vicora-limite-tabla{display:flex;justify-content:center;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 8px;color:#64748b;font-size:13px}
+.vicora-limite-tabla[hidden]{display:none!important}
+tbody tr[hidden]{display:none!important}
+</style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
     <!-- ===================================================
@@ -2080,7 +2090,7 @@ button.vi-accion-actualizar:hover:not(:disabled) { background: #bfdbfe !importan
 
 
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-mobile-final-4" defer></script><script src="compras.js?v=20261012-mobile-final-4" defer></script><script src="ventas.js?v=20261012-mobile-final-4" defer></script><script src="pagos.js?v=20261012-mobile-final-4" defer></script><script src="caja.js?v=20261012-mobile-final-4" defer></script><script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-listas-v5" defer></script><script src="compras.js?v=20261012-listas-v5" defer></script><script src="ventas.js?v=20261012-listas-v5" defer></script><script src="pagos.js?v=20261012-listas-v5" defer></script><script src="caja.js?v=20261012-listas-v5" defer></script><script>
 'use strict';
 const SUPABASE_URL='https://nxdimgzcsjnjjdfdpatp.supabase.co';
 const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
@@ -2475,55 +2485,91 @@ async function cerrarSesion(){try{if(db)await db.auth.signOut();}finally{locatio
 })();
 
 iniciar();
-</script><script id="vicoraAjustesInterfaz20261012">
+</script><script id="vicoraAjustesInterfaz20261012v5">
 (function(){
  'use strict';
- const root=()=>document.getElementById('contenidoPrincipal');
- let busy=false;
- function apply(){
-  if(busy)return;busy=true;
-  try{
-   const r=root();if(!r)return;
-   const modulo=r.querySelector('.page-title')?.textContent?.toLocaleLowerCase('es')||'';
-   // Solamente botones de acción de modales, no filtros ni operaciones destructivas.
-   r.querySelectorAll('button').forEach(b=>{
-    const t=(b.textContent||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es');
-    const modal=b.closest('.vi-client-overlay,.vi-client-dialog,.vp-modal-overlay,.vp-modal,.ven-modal,.ven-dialog,[role="dialog"]');
-    const pago=modulo.includes('pagos a proveedores')||!!b.closest('.vp-modal');
-    const proveedor=modulo.includes('proveedor')&&!pago;
-    const compra=modulo.includes('compra')&&!pago;
-    b.classList.toggle('vicora-boton-rojo',!!modal&&(t==='cerrar'||t==='cancelar')&&(proveedor||pago));
-    b.classList.toggle('vicora-boton-azul',compra&&/^(\+\s*)?agregar (producto|productos)$/.test(t));
-    b.classList.toggle('vicora-boton-verde',modulo==='ventas'&&t==='confirmar venta');
-   });
-   // Para listados de Compras/Proveedores sin paginación propia: ocultar filas, sin borrar datos.
-      if(!modulo.includes('compras')&&!modulo.includes('proveedores'))return;
-   r.querySelectorAll('table').forEach(tabla=>{
-    if(tabla.closest('.vi-client-overlay,.vi-client-dialog,[role="dialog"],.vp-modal,.ven-modal'))return;
-    const cuerpo=tabla.tBodies[0];if(!cuerpo)return;
-    const filas=Array.from(cuerpo.rows);if(filas.length<=15&&!tabla.dataset.vicoraCantidad)return;
-    // No interferir con la paginación implementada por el propio módulo.
-    const contenedor=tabla.parentElement;
-    if(contenedor?.querySelector('.vicora-ver-mas')||tabla.parentElement?.parentElement?.querySelector('[onclick*="CambiarPagina"],[onclick*="Pagina++"]'))return;
-    const n=Number(tabla.dataset.vicoraCantidad||15);
-    const firma=`${n}:${filas.length}`;
-    if(tabla.dataset.vicoraFirma===firma)return;
-    tabla.dataset.vicoraFirma=firma;
-    filas.forEach((fila,i)=>{fila.style.display=i<n?'':'none';});
-    let pie=tabla.nextElementSibling;
-    if(!pie?.classList.contains('vicora-limite-tabla')){
-      pie=document.createElement('div');pie.className='vicora-limite-tabla';tabla.insertAdjacentElement('afterend',pie);
-    }
-    pie.innerHTML='';
-    const info=document.createElement('small');info.textContent=`Mostrando ${Math.min(n,filas.length)} de ${filas.length}`;pie.appendChild(info);
-    if(n<filas.length){const boton=document.createElement('button');boton.type='button';boton.className='vi-client-btn alt';boton.textContent='Ver más';boton.addEventListener('click',()=>{tabla.dataset.vicoraCantidad=String(n+15);apply();});pie.appendChild(boton);}
-   });
-  }finally{busy=false;}
+ const raiz=()=>document.getElementById('contenidoPrincipal');
+ const LIMIT=15;
+ let ejecutando=false;
+ const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ function moduloActual(){
+   const h=norm(raiz()?.querySelector('.page-title')?.textContent);
+   if(h.includes('proveedor')&&!h.includes('pagos'))return 'proveedores';
+   if(h.includes('compras'))return 'compras';
+   if(h.includes('pagos'))return 'pagos';
+   if(h.includes('caja'))return 'caja';
+   if(h.includes('ventas'))return 'ventas';
+   if(h.includes('clientes'))return 'clientes';
+   if(h.includes('productos'))return 'productos';
+   return '';
  }
- let pending=false;
- const obs=new MutationObserver(()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;apply();});});
- function init(){const r=root();if(!r)return;obs.observe(r,{childList:true,subtree:true});apply();}
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+ function acciones(){
+   const mod=moduloActual();
+   if(!mod)return;
+   // Incluye diálogos que algunos módulos crean fuera de contenidoPrincipal.
+   document.querySelectorAll('button').forEach(b=>{
+     if(b.closest('.sidebar,.topbar,.vicora-toast'))return;
+     const t=norm(b.textContent);
+     const esCerrar=/^(cerrar|cancelar)(\s+.*)?$/.test(t);
+     const esAgregar=/^(\+\s*)?agregar\s+(producto|productos)$/.test(t);
+     const esVenta=t==='confirmar venta';
+     const dialogo=b.closest('[role="dialog"],.vi-client-overlay,.vi-client-dialog,.vp-modal,.vp-modal-overlay,.ven-modal,.ven-dialog,.cp-modal,.comp-modal,.modal,.modal-overlay,[class*="modal"],[class*="dialog"]');
+     b.classList.toggle('vicora-boton-rojo',!!dialogo&&esCerrar&&['proveedores','pagos'].includes(mod));
+     b.classList.toggle('vicora-boton-azul',mod==='compras'&&esAgregar);
+     b.classList.toggle('vicora-boton-verde',mod==='ventas'&&esVenta);
+   });
+ }
+ function paginar(){
+   const r=raiz(),mod=moduloActual();
+   if(!r||!mod)return;
+   // Clientes, Productos, Ventas, Caja y Pagos tienen paginación propia en los módulos
+   // actualizados. Se evita crear dos botones "Ver más" para una misma tabla.
+   if(!['proveedores','compras'].includes(mod))return;
+   r.querySelectorAll('table').forEach(tabla=>{
+     if(tabla.closest('[role="dialog"],.vi-client-overlay,.vi-client-dialog,.vp-modal,.vp-modal-overlay,.ven-modal,.cp-modal,.comp-modal,.modal,.modal-overlay,[class*="modal"],[class*="dialog"]'))return;
+     if(tabla.closest('[hidden]'))return;
+     const cuerpo=tabla.tBodies[0];if(!cuerpo)return;
+     const filas=Array.from(cuerpo.rows);
+     if(!filas.length)return;
+     // No modificar tablas que ya traen paginación de su módulo.
+     const externo=tabla.parentElement?.querySelector('.vicora-ver-mas,[data-pagina],.pagination,.paginacion');
+     if(externo)return;
+     const n=Math.max(LIMIT,Number(tabla.dataset.vicoraCantidad)||LIMIT);
+     filas.forEach((fila,i)=>{const ocultar=i>=n; if(fila.hidden!==ocultar)fila.hidden=ocultar;});
+     let pie=tabla.nextElementSibling;
+     if(!pie?.classList.contains('vicora-limite-tabla')){
+       pie=document.createElement('div');pie.className='vicora-limite-tabla';
+       tabla.insertAdjacentElement('afterend',pie);
+     }
+     const firma=n+'|'+filas.length;
+     if(pie.dataset.firma===firma)return;
+     pie.dataset.firma=firma;
+     pie.replaceChildren();
+     if(filas.length<=LIMIT){pie.hidden=true;return;}
+     pie.hidden=false;
+     const info=document.createElement('span');
+     info.textContent='Mostrando '+Math.min(n,filas.length)+' de '+filas.length;
+     pie.appendChild(info);
+     if(n<filas.length){
+       const boton=document.createElement('button');
+       boton.type='button';boton.className='vi-client-btn alt';
+       boton.textContent='Ver más';
+       boton.addEventListener('click',()=>{tabla.dataset.vicoraCantidad=String(n+LIMIT);pie.dataset.firma='';paginar();});
+       pie.appendChild(boton);
+     }
+   });
+ }
+ function aplicar(){if(ejecutando)return;ejecutando=true;try{acciones();paginar();}finally{ejecutando=false;}}
+ let pendiente=false;
+ function programar(){if(pendiente)return;pendiente=true;requestAnimationFrame(()=>{pendiente=false;aplicar();});}
+ function iniciar(){
+   const r=raiz();if(!r)return;
+   new MutationObserver(programar).observe(r,{subtree:true,childList:true,characterData:true});
+   // Los modales externos también pueden crearse directamente bajo body.
+   new MutationObserver(programar).observe(document.body,{childList:true});
+   aplicar();
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
 })();
 </script>
 </body></html>
