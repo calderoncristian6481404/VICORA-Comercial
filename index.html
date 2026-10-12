@@ -1774,7 +1774,19 @@ button.vi-accion-actualizar:hover:not(:disabled) { background: #bfdbfe !importan
 #comprasModal .vi-prov-footer .vi-client-btn:disabled{opacity:.5!important;cursor:not-allowed!important}
 @media(max-width:600px){#comprasModal .vi-prov-footer{justify-content:stretch}#comprasModal .vi-prov-footer .vi-client-btn{flex:1 1 135px;max-width:100%}}
 
-</style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
+</style><style id="vicoraAjustesVisuales20261012">
+/* Acciones secundarias coherentes */
+.vicora-boton-rojo{background:#dc2626!important;border:1px solid #dc2626!important;color:white!important;font-weight:700!important}
+.vicora-boton-rojo:hover{background:#b91c1c!important;border-color:#b91c1c!important}
+.vicora-boton-azul{background:#2563eb!important;border:1px solid #2563eb!important;color:white!important;font-weight:700!important}
+.vicora-boton-azul:hover{background:#1d4ed8!important}
+.vicora-boton-verde{background:#15803d!important;border:1px solid #15803d!important;color:white!important;font-weight:750!important}
+.vicora-boton-verde:hover{background:#166534!important}
+.vicora-ver-mas{display:flex;justify-content:center;align-items:center;gap:12px;padding:15px;flex-wrap:wrap}
+.vicora-ver-mas button{min-width:120px}
+.vicora-limite-tabla{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 6px;flex-wrap:wrap}
+</style>
+</head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
     <!-- ===================================================
@@ -2126,7 +2138,7 @@ function notificarVicora(titulo, mensaje='', tipo='info'){
 // CLIENTES · Consultas y escrituras bajo la sesión real y RLS de Supabase.
 function clienteMensaje(texto,error=false){clientesAviso=texto;clientesError=error;const el=$('clientesMensaje');if(el){el.textContent='';el.hidden=true;}if(texto)notificarVicora(error?'Operación no completada':'Operación realizada',texto,error?'error':'exito');}
 function clienteFecha(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'});}
-function clienteBuscarTexto(){const input=$('clientesBuscar');clientesBusqueda=input?input.value:'';pintarTablaClientes();}
+function clienteBuscarTexto(){const input=$('clientesBuscar');clientesBusqueda=input?input.value:'';clientesVisibles=15;pintarTablaClientes();}
 async function clienteVerificarAcceso(){
  const {data:{user},error:ue}=await db.auth.getUser();if(ue||!user||user.id!==perfil.auth_user_id)throw new Error('La sesión cambió. Volvé a ingresar.');
  const {data:ps,error:pe}=await db.from('usuarios').select('id_negocio,estado,auth_user_id');
@@ -2142,8 +2154,10 @@ async function obtenerClientesDB(){
  if((data||[]).some(c=>c.id_negocio!==perfil.id_negocio))throw new Error('RLS devolvió datos de otro negocio. Se bloqueó la operación.');
  return data||[];
 }
+let clientesVisibles=15;
+function clientesVerMas(){clientesVisibles+=15;pintarTablaClientes();}
 async function mostrarClientes(boton){
- seleccionar(boton);clientesBusqueda='';clientesAviso='';clientesCargando=true;
+ seleccionar(boton);clientesVisibles=15;clientesBusqueda='';clientesAviso='';clientesCargando=true;
  $('contenidoPrincipal').innerHTML=`<h1 class="page-title">Clientes</h1><p class="page-subtitle">Gestión de clientes · ${esc(negocio.nombre)}</p><div class="vi-client-toolbar"><input id="clientesBuscar" type="search" placeholder="Buscar por nombre, documento, teléfono..." oninput="clienteBuscarTexto()" aria-label="Buscar clientes"><button class="vi-client-btn" type="button" onclick="abrirClienteFormulario()">+ Nuevo cliente</button><button class="vi-client-btn alt" type="button" onclick="recargarClientes()">Actualizar</button></div><div id="clientesMensaje" class="vi-client-alert" hidden></div><div id="clientesListado" class="vi-client-table-wrap"><p style="padding:25px">Cargando clientes...</p></div><div id="clientesModal"></div>`;
  await recargarClientes();
 }
@@ -2157,7 +2171,7 @@ function pintarTablaClientes(){
  const q=clientesBusqueda.trim().toLocaleLowerCase('es');
  const items=clientesActuales.filter(c=>!q||[c.id_cliente,c.nombre,c.apellido,c.documento,c.telefono,c.email,c.localidad].join(' ').toLocaleLowerCase('es').includes(q));
  const activos=clientesActuales.filter(c=>c.estado==='ACTIVO').length;
- lista.innerHTML=`<div class="vi-client-count" style="padding:15px 15px 0">Mostrando ${items.length} de ${clientesActuales.length} registros · ${activos} activos</div>${items.length?`<table class="vi-client-table"><thead><tr><th>ID</th><th>Nombre y apellido</th><th>Documento</th><th>Teléfono</th><th>Email</th><th>Localidad</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${items.map(c=>`<tr><td>${esc(c.id_cliente)}</td><td><strong>${esc(c.nombre)} ${esc(c.apellido)}</strong></td><td>${esc(c.documento||'—')}</td><td>${esc(c.telefono||'—')}</td><td>${esc(c.email||'—')}</td><td>${esc(c.localidad||'—')}</td><td><span class="vi-client-status ${c.estado==='ACTIVO'?'':'off'}">${esc(c.estado)}</span></td><td><div class="vi-client-actions"><button onclick="verFichaCliente('${esc(c.id_cliente)}')">Ver</button><button onclick="abrirClienteFormulario('${esc(c.id_cliente)}')">Editar</button><button onclick="alternarCliente('${esc(c.id_cliente)}')">${c.estado==='ACTIVO'?'Desactivar':'Activar'}</button></div></td></tr>`).join('')}</tbody></table>`:'<p style="padding:25px;color:#64748b">No hay clientes que coincidan con la búsqueda.</p>'}`;
+ lista.innerHTML=`<div class="vi-client-count" style="padding:15px 15px 0">Mostrando ${Math.min(clientesVisibles,items.length)} de ${items.length} coincidencias · ${activos} activos</div>${items.length?`<table class="vi-client-table"><thead><tr><th>ID</th><th>Nombre y apellido</th><th>Documento</th><th>Teléfono</th><th>Email</th><th>Localidad</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${items.slice(0,clientesVisibles).map(c=>`<tr><td>${esc(c.id_cliente)}</td><td><strong>${esc(c.nombre)} ${esc(c.apellido)}</strong></td><td>${esc(c.documento||'—')}</td><td>${esc(c.telefono||'—')}</td><td>${esc(c.email||'—')}</td><td>${esc(c.localidad||'—')}</td><td><span class="vi-client-status ${c.estado==='ACTIVO'?'':'off'}">${esc(c.estado)}</span></td><td><div class="vi-client-actions"><button onclick="verFichaCliente('${esc(c.id_cliente)}')">Ver</button><button onclick="abrirClienteFormulario('${esc(c.id_cliente)}')">Editar</button><button onclick="alternarCliente('${esc(c.id_cliente)}')">${c.estado==='ACTIVO'?'Desactivar':'Activar'}</button></div></td></tr>`).join('')}</tbody></table>`:'<p style="padding:25px;color:#64748b">No hay clientes que coincidan con la búsqueda.</p>'}${items.length>clientesVisibles?`<div class="vicora-ver-mas"><button class="vi-client-btn alt" type="button" onclick="clientesVerMas()">Ver más</button></div>`:''}`;
 }
 function clientePorId(id){return clientesActuales.find(c=>c.id_cliente===id);}
 function cerrarClienteModal(){const m=$('clientesModal');if(m)m.innerHTML='';}
@@ -2452,4 +2466,56 @@ async function cerrarSesion(){try{if(db)await db.auth.signOut();}finally{locatio
 })();
 
 iniciar();
-</script></body></html>
+</script><script id="vicoraAjustesInterfaz20261012">
+(function(){
+ 'use strict';
+ const root=()=>document.getElementById('contenidoPrincipal');
+ let busy=false;
+ function apply(){
+  if(busy)return;busy=true;
+  try{
+   const r=root();if(!r)return;
+   // Solamente botones de acción de modales, no filtros ni operaciones destructivas.
+   r.querySelectorAll('button').forEach(b=>{
+    const t=(b.textContent||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es');
+    const modal=b.closest('.vi-client-overlay,.vi-client-dialog,.vp-modal-overlay,.vp-modal,.ven-modal,.ven-dialog,[role="dialog"]');
+    const modulo=r.querySelector('.page-title')?.textContent?.toLocaleLowerCase('es')||'';
+    const pago=modulo.includes('pagos a proveedores')||!!b.closest('.vp-modal');
+    const proveedor=modulo.includes('proveedor')&&!pago;
+    const compra=modulo.includes('compra')&&!pago;
+    b.classList.toggle('vicora-boton-rojo',!!modal&&(t==='cerrar'||t==='cancelar')&&(proveedor||pago));
+    b.classList.toggle('vicora-boton-azul',compra&&/^(\+\s*)?agregar (producto|productos)$/.test(t));
+    b.classList.toggle('vicora-boton-verde',modulo==='ventas'&&t==='confirmar venta');
+   });
+   // Para listados de Compras/Proveedores sin paginación propia: ocultar filas, sin borrar datos.
+   const modulo=r.querySelector('.page-title')?.textContent?.toLocaleLowerCase('es')||'';
+   if(!modulo.includes('compras')&&!modulo.includes('proveedores'))return;
+   r.querySelectorAll('table').forEach(tabla=>{
+    if(tabla.closest('.vi-client-overlay,.vi-client-dialog,[role="dialog"],.vp-modal,.ven-modal'))return;
+    const cuerpo=tabla.tBodies[0];if(!cuerpo)return;
+    const filas=Array.from(cuerpo.rows);if(filas.length<=15&&!tabla.dataset.vicoraCantidad)return;
+    // No interferir con la paginación implementada por el propio módulo.
+    const contenedor=tabla.parentElement;
+    if(contenedor?.querySelector('.vicora-ver-mas')||tabla.parentElement?.parentElement?.querySelector('[onclick*="CambiarPagina"],[onclick*="Pagina++"]'))return;
+    const n=Number(tabla.dataset.vicoraCantidad||15);
+    const firma=`${n}:${filas.length}`;
+    if(tabla.dataset.vicoraFirma===firma)return;
+    tabla.dataset.vicoraFirma=firma;
+    filas.forEach((fila,i)=>{fila.style.display=i<n?'':'none';});
+    let pie=tabla.nextElementSibling;
+    if(!pie?.classList.contains('vicora-limite-tabla')){
+      pie=document.createElement('div');pie.className='vicora-limite-tabla';tabla.insertAdjacentElement('afterend',pie);
+    }
+    pie.innerHTML='';
+    const info=document.createElement('small');info.textContent=`Mostrando ${Math.min(n,filas.length)} de ${filas.length}`;pie.appendChild(info);
+    if(n<filas.length){const boton=document.createElement('button');boton.type='button';boton.className='vi-client-btn alt';boton.textContent='Ver más';boton.addEventListener('click',()=>{tabla.dataset.vicoraCantidad=String(n+15);apply();});pie.appendChild(boton);}
+   });
+  }finally{busy=false;}
+ }
+ let pending=false;
+ const obs=new MutationObserver(()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;apply();});});
+ function init(){const r=root();if(!r)return;obs.observe(r,{childList:true,subtree:true});apply();}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
+</body></html>
