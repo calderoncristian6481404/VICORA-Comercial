@@ -2071,7 +2071,7 @@ button.vi-accion-actualizar:hover:not(:disabled) { background: #bfdbfe !importan
 
 
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js" defer></script><script src="compras.js" defer></script><script src="ventas.js" defer></script><script src="pagos.js" defer></script><script src="caja.js" defer></script><script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-fix2" defer></script><script src="compras.js?v=20261012-fix2" defer></script><script src="ventas.js?v=20261012-fix2" defer></script><script src="pagos.js?v=20261012-fix2" defer></script><script src="caja.js?v=20261012-fix2" defer></script><script>
 'use strict';
 const SUPABASE_URL='https://nxdimgzcsjnjjdfdpatp.supabase.co';
 const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
@@ -2488,8 +2488,7 @@ iniciar();
     b.classList.toggle('vicora-boton-verde',modulo==='ventas'&&t==='confirmar venta');
    });
    // Para listados de Compras/Proveedores sin paginación propia: ocultar filas, sin borrar datos.
-   const modulo=r.querySelector('.page-title')?.textContent?.toLocaleLowerCase('es')||'';
-   if(!modulo.includes('compras')&&!modulo.includes('proveedores'))return;
+      if(!modulo.includes('compras')&&!modulo.includes('proveedores'))return;
    r.querySelectorAll('table').forEach(tabla=>{
     if(tabla.closest('.vi-client-overlay,.vi-client-dialog,[role="dialog"],.vp-modal,.ven-modal'))return;
     const cuerpo=tabla.tBodies[0];if(!cuerpo)return;
