@@ -1762,6 +1762,17 @@ button.vi-accion-actualizar:hover:not(:disabled) { background: #bfdbfe !importan
   .business-name::after { margin: 6px auto 0 !important; }
 }
 
+
+/* VICORA | Acciones de Compras con colores y adaptación móvil */
+#comprasModal .vi-prov-footer{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+#comprasModal .vi-prov-footer .vi-client-btn{border-radius:10px!important;font-weight:700!important;padding:11px 15px!important;white-space:normal!important;min-height:43px}
+#comprasModal .vi-prov-footer .vi-client-btn.alt{background:#e8f0ff!important;color:#1d4ed8!important;border:1px solid #a8c5ff!important}
+#comprasModal .vi-prov-footer .vi-client-btn.ok{background:#dcfce7!important;color:#166534!important;border:1px solid #86efac!important}
+#comprasModal .vi-prov-footer .vi-client-btn.warn{background:#fff1f2!important;color:#be123c!important;border:1px solid #fda4af!important}
+#comprasModal .vi-prov-footer .vi-client-btn:not(.alt):not(.ok):not(.warn){background:#2563eb!important;color:white!important;border:1px solid #2563eb!important}
+#comprasModal .vi-prov-footer .vi-client-btn:disabled{opacity:.5!important;cursor:not-allowed!important}
+@media(max-width:600px){#comprasModal .vi-prov-footer{justify-content:stretch}#comprasModal .vi-prov-footer .vi-client-btn{flex:1 1 135px;max-width:100%}}
+
 </style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
