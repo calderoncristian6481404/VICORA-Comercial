@@ -2575,4 +2575,45 @@ iniciar();
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
 })();
 </script>
+
+<script id="vicoraNavegacionAtrasMovilV1">
+/* Navegación interna: Atrás vuelve al panel de Inicio, no a la página de autenticación. */
+(function(){
+ 'use strict';
+ let restaurando=false;
+ const esPanel=()=>!!document.getElementById('contenidoPrincipal');
+ function botonInicio(){return document.querySelector('.sidebar .menu-item[onclick*="mostrarInicio"]');}
+ function botonModulo(modulo){return Array.from(document.querySelectorAll('.sidebar .menu-item[onclick]')).find(b=>b.getAttribute('onclick').includes("mostrarModulo('"+modulo+"'"));}
+ function destino(boton){
+   const fn=boton?.getAttribute('onclick')||'';
+   if(fn.includes('mostrarInicio('))return 'inicio';
+   const m=fn.match(/mostrarModulo\(['"]([^'"]+)['"]/);
+   return m?m[1]:null;
+ }
+ function mostrar(dest){
+   if(!esPanel())return;
+   const inicio=botonInicio();
+   if(dest==='inicio'){if(typeof mostrarInicio==='function')mostrarInicio(inicio);return;}
+   const boton=botonModulo(dest);
+   if(boton&&typeof mostrarModulo==='function')mostrarModulo(dest,boton);
+   else if(typeof mostrarInicio==='function')mostrarInicio(inicio);
+ }
+ document.addEventListener('click',function(ev){
+   if(restaurando||!esPanel())return;
+   const b=ev.target.closest('.sidebar .menu-item[onclick]');
+   if(!b)return;
+   const dest=destino(b);if(!dest)return;
+   try{
+     if(!history.state?.vicoraPantalla){history.replaceState({...(history.state||{}),vicoraPantalla:'inicio'},'',location.href);}
+     if(history.state?.vicoraPantalla!==dest){history.pushState({vicoraPantalla:dest},'',location.href);}
+   }catch(e){console.warn('Historial VICORA:',e);}
+ },true);
+ window.addEventListener('popstate',function(ev){
+   if(!esPanel())return;
+   restaurando=true;
+   try{mostrar(ev.state?.vicoraPantalla||'inicio');}
+   finally{restaurando=false;}
+ });
+})();
+</script>
 </body></html>
