@@ -1617,33 +1617,66 @@
 @media(max-width:600px){.vi-client-toolbar > input,.vi-prov-toolbar > input{flex-basis:100%;max-width:none}.vi-client-toolbar > input + .vi-client-btn,.vi-prov-toolbar > input + .vi-client-btn{margin-left:auto}}
 
 /* =====================================================
-   VICORA · COLORES DE ACCIONES (solo presentación)
+   VICORA · ACCIONES SUAVES / ESTILO PROFESIONAL
+   Cambios exclusivamente visuales; se conservan eventos y lógica.
    ===================================================== */
 .vi-accion-color {
-  border: 1px solid transparent !important;
-  border-radius: 9px !important;
-  color: #fff !important;
-  font-weight: 700 !important;
-  box-shadow: 0 2px 7px rgba(15,23,42,.12);
-  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: background-color .15s ease, border-color .15s ease !important;
 }
 .vi-accion-color:hover:not(:disabled) {
-  filter: brightness(.91);
-  transform: translateY(-1px);
-  box-shadow: 0 5px 12px rgba(15,23,42,.18);
+  filter: none !important;
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: #cbd5e1 !important;
 }
-.vi-accion-color:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
-.vi-accion-color:disabled { opacity:.5; cursor:not-allowed; box-shadow:none; }
-.vi-accion-ver { background:#2563eb !important; }
-.vi-accion-editar { background:#d97706 !important; }
-.vi-accion-desactivar, .vi-accion-cancelar, .vi-accion-anular { background:#dc2626 !important; }
-.vi-accion-ajustar { background:#7c3aed !important; }
-.vi-accion-activar, .vi-accion-actualizar { background:#059669 !important; }
-/* También se aplican a confirmaciones y botones renderizados desde otros módulos. */
+.vi-accion-color:focus-visible { outline: 2px solid #94a3b8; outline-offset: 2px; }
+.vi-accion-color:disabled { opacity: .48; cursor: not-allowed; }
+.vi-accion-ver { background: #eff6ff !important; color: #1d4ed8 !important; border-color: #dbeafe !important; }
+.vi-accion-ver:hover:not(:disabled) { background: #dbeafe !important; }
+.vi-accion-editar { background: #fff7ed !important; color: #9a3412 !important; border-color: #ffedd5 !important; }
+.vi-accion-editar:hover:not(:disabled) { background: #ffedd5 !important; }
+.vi-accion-ajustar { background: #f5f3ff !important; color: #6d28d9 !important; border-color: #ede9fe !important; }
+.vi-accion-ajustar:hover:not(:disabled) { background: #ede9fe !important; }
+.vi-accion-desactivar, .vi-accion-anular { background: #fff1f2 !important; color: #be123c !important; border-color: #ffe4e6 !important; }
+.vi-accion-desactivar:hover:not(:disabled), .vi-accion-anular:hover:not(:disabled) { background: #ffe4e6 !important; }
+.vi-accion-cancelar { background: #f1f5f9 !important; color: #475569 !important; border-color: #e2e8f0 !important; }
+.vi-accion-cancelar:hover:not(:disabled) { background: #e2e8f0 !important; }
+.vi-accion-activar, .vi-accion-actualizar { background: #ecfdf5 !important; color: #047857 !important; border-color: #d1fae5 !important; }
+.vi-accion-activar:hover:not(:disabled), .vi-accion-actualizar:hover:not(:disabled) { background: #d1fae5 !important; }
+/* Acciones del listado de productos: separaciones uniformes y sin bloques saturados. */
+.vi-client-actions { gap: 7px !important; align-items: center; }
 
 /* VICORA - Identidad visual de marca */
 .vicora-logo-top{width:52px;height:52px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 3px 8px rgba(0,0,0,.22));}
 @media(max-width:760px){.vicora-logo-top{width:40px;height:40px}.app-brand{gap:5px}}
+
+/* VICORA - estilo suave y coherente en Clientes, Proveedores y demás módulos */
+.vi-client-btn, .vi-prov-actions button, .vi-client-actions button,
+.btn-primary, .btn-secondary, .btn-info, .btn-warning, .btn-danger, .btn-success {
+  border-radius: 9px !important;
+  box-shadow: none !important;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease !important;
+}
+.vi-client-btn { background:#eaf1ff !important; color:#1e40af !important; border:1px solid #cdddfb !important; font-weight:600 !important; }
+.vi-client-btn:hover:not(:disabled) { background:#dbeafe !important; }
+.vi-client-btn.alt { background:#f1f5f9 !important; color:#475569 !important; border-color:#dce4ec !important; }
+.vi-client-btn.warn { background:#fff1f2 !important; color:#be123c !important; border-color:#ffe4e6 !important; }
+.vi-client-btn.ok { background:#ecfdf5 !important; color:#047857 !important; border-color:#d1fae5 !important; }
+.vi-prov-actions button, .vi-client-actions button { background:#f8fafc; color:#334155; border-color:#e2e8f0; font-weight:600; }
+.vi-prov-actions button:hover:not(:disabled), .vi-client-actions button:hover:not(:disabled) { background:#f1f5f9; }
+.btn-primary { background:#eaf1ff !important; color:#1e40af !important; border:1px solid #cdddfb !important; }
+.btn-secondary { background:#f1f5f9 !important; color:#475569 !important; border:1px solid #dce4ec !important; }
+.btn-info { background:#eff6ff !important; color:#1d4ed8 !important; border:1px solid #dbeafe !important; }
+.btn-warning { background:#fff7ed !important; color:#9a3412 !important; border:1px solid #ffedd5 !important; }
+.btn-danger { background:#fff1f2 !important; color:#be123c !important; border:1px solid #ffe4e6 !important; }
+.btn-success { background:#ecfdf5 !important; color:#047857 !important; border:1px solid #d1fae5 !important; }
 </style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
