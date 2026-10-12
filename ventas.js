@@ -32,7 +32,7 @@ function venCarritoPintar(){const el=$('venCarrito');if(!el)return;el.innerHTML=
 function venCobroPintar(){const el=$('venCobroCampos');if(!el)return;const m=ventasUI.modalidad;el.innerHTML=m==='CUENTA_CORRIENTE'?'<p class="ven-info">La venta quedará pendiente de cobro.</p>':`<label class="ven-label" style="margin-top:14px">Medio de pago</label><select class="ven-select" id="venMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select>${m==='PARCIAL'?'<label class="ven-label" style="margin-top:14px">Importe cobrado inicialmente ($)</label><input class="ven-input" type="number" id="venAnticipo" min="0.01" step="0.01" value="'+ventasUI.anticipo+'">':''}`;if($('venMedio')){$('venMedio').value=ventasUI.medio;$('venMedio').onchange=e=>ventasUI.medio=e.target.value;}if($('venAnticipo'))$('venAnticipo').oninput=e=>{ventasUI.anticipo=venN(e.target.value);venResumen();};}
 function venResumen(){const el=$('venTotales');if(!el)return;const total=venTotal(),cobrado=ventasUI.modalidad==='CONTADO'?total:ventasUI.modalidad==='PARCIAL'?ventasUI.anticipo:0;el.innerHTML=`<div class="ven-totals"><div><span>Subtotal</span><strong>${venDinero(venSubtotal())}</strong></div><div><span>Descuento</span><strong>− ${venDinero(ventasUI.descuento)}</strong></div><hr><div><strong>Total</strong><strong class="ven-total">${venDinero(total)}</strong></div><div><span>Cobro inicial</span><strong>${venDinero(cobrado)}</strong></div><div><span>Saldo pendiente</span><strong>${venDinero(Math.max(0,total-cobrado))}</strong></div></div>`;}
 async function venGuardar(){if(ventasUI.guardando)return;const cart=ventasUI.carrito.map(p=>({...p})),modalidad=ventasUI.modalidad,idCliente=ventasUI.cliente,descuento=ventasUI.descuento,anticipo=ventasUI.anticipo,medio=ventasUI.medio,total=venTotal();if(!cart.length)return venToast('Faltan productos','Agregá al menos un producto.','advertencia');if(total<=0||descuento<0||descuento>venSubtotal())return venToast('Importe inválido','Revisá el descuento y el total.','advertencia');if(modalidad!=='CONTADO'&&!idCliente)return venToast('Seleccioná un cliente','Cuenta corriente y pago parcial requieren cliente registrado.','advertencia');if(modalidad==='PARCIAL'&&!(anticipo>0&&anticipo<total))return venToast('Cobro parcial inválido','El anticipo debe ser mayor que cero y menor al total.','advertencia');if(cart.some(p=>p.cantidad<=0||p.cantidad>p.stock||!Number.isFinite(p.cantidad)))return venToast('Cantidad inválida','Revisá las cantidades y el stock.','advertencia');const ok=await confirmarVicora('Confirmar venta',`¿Registrar la venta por ${venDinero(total)}? Se descontará stock y se registrará el cobro correspondiente.`);if(!ok)return;ventasUI.guardando=true;const btn=$('venConfirmar');if(btn){btn.disabled=true;btn.textContent='Registrando venta...';}let idVenta=null;try{await venAcceso();const cliente=ventasUI.clientes.find(c=>c.id_cliente===idCliente);const nombreCliente=cliente?`${cliente.nombre||''} ${cliente.apellido||''}`.trim():'Consumidor final';const payload={id_negocio:perfil.id_negocio,id_cliente:idCliente||null,cliente:nombreCliente,descuento,modalidad_cobro:modalidad,medio_pago:modalidad==='CUENTA_CORRIENTE'?null:medio,cobrado_inicial:modalidad==='PARCIAL'?anticipo:0,estado:'BORRADOR'};const {data:venta,error:ev}=await db.from('ventas').insert(payload).select('id_venta').single();if(ev)throw ev;idVenta=venta.id_venta;const detalles=cart.map((p,i)=>({id_negocio:perfil.id_negocio,id_venta:idVenta,numero_linea:i+1,id_producto:p.id,cantidad:p.cantidad,precio_unitario:p.precio,subtotal:venN(p.cantidad*p.precio)}));const {error:ed}=await db.from('ventas_detalle').insert(detalles);if(ed)throw ed;const {data:conf,error:ec}=await db.rpc('confirmar_venta',{p_id_negocio:perfil.id_negocio,p_id_venta:idVenta});if(ec)throw ec;if(!conf?.ok)throw new Error('Supabase no confirmó la operación.');venCerrar();venToast('Venta confirmada',`${idVenta} · Total: ${venDinero(conf.total)} · Saldo: ${venDinero(conf.saldo_pendiente)}`,'exito');await venCargar();}catch(e){venToast('No se pudo confirmar',`${venError(e)}${idVenta?' · Borrador: '+idVenta:''}`,'error');if(idVenta){venCerrar();await venCargar();}}finally{ventasUI.guardando=false;if(btn?.isConnected){btn.disabled=false;btn.textContent='Confirmar venta';}}}
-async function venDetalle(id){try{await venAcceso();const [a,b,c,d]=await Promise.all([db.from('ventas').select('*').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).single(),db.from('ventas_detalle').select('numero_linea,id_producto,cantidad,precio_unitario,subtotal').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).order('numero_linea'),db.from('cobros_clientes').select('fecha_cobro,importe,medio_pago,origen,estado').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).order('fecha_cobro'),db.from('cuentas_cobrar').select('saldo_pendiente,estado,total_cobrado').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).maybeSingle()]);for(const r of [a,b,c,d])if(r.error)throw r.error;const v=a.data,det=b.data||[],cob=c.data||[],deuda=d.data;const modal=$('venModal');modal.innerHTML=`<div class="ven-modal"><div class="ven-dialog"><h2>Venta ${esc(v.id_venta)}</h2><div class="ven-row" style="justify-content:space-between"><span>${esc(venFecha(v.fecha_venta))} · ${esc(v.cliente)}</span>${venEstado(v.estado)}</div><div class="ven-card" style="margin-top:16px"><h3>Productos</h3><div class="ven-table"><table class="ven-items"><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${det.map(p=>{const prod=ventasUI.productos.find(x=>x.id_producto===p.id_producto);return `<tr><td>${esc(prod?.nombre||p.id_producto)}</td><td>${venNumero(p.cantidad)}</td><td>${venDinero(p.precio_unitario)}</td><td>${venDinero(p.subtotal)}</td></tr>`;}).join('')}</tbody></table></div><div class="ven-totals" style="margin-top:12px"><div><span>Descuento</span><strong>${venDinero(v.descuento)}</strong></div><div><strong>Total</strong><strong class="ven-total">${venDinero(v.total)}</strong></div><div><span>Saldo pendiente</span><strong>${venDinero(deuda?.saldo_pendiente||0)}</strong></div></div></div><div class="ven-card"><h3>Cobros registrados</h3>${cob.length?cob.map(p=>`<div class="ven-product"><span>${esc(venFecha(p.fecha_cobro))} · ${esc(p.medio_pago)} · ${esc(p.origen)}</span><strong>${venDinero(p.importe)}</strong></div>`).join(''):'<div class="ven-muted">Sin cobros registrados.</div>'}</div><div class="ven-modal-foot"><button class="vi-client-btn alt" id="venCerrarDetalle">Cerrar</button><button class="vi-client-btn" id="venImprimir">Imprimir / Reimprimir</button>${v.estado==='CONFIRMADA'?'<button class="vi-client-btn alt" id="venAnular">Anular venta</button>':''}</div></div></div>`;$('venCerrarDetalle').onclick=venCerrar;$('venImprimir').onclick=()=>venImprimir80(v,det,cob);if($('venAnular'))$('venAnular').onclick=()=>venAbrirAnulacion(v);;}catch(e){venToast('No se pudo abrir la venta',venError(e),'error');}}
+async function venDetalle(id){try{await venAcceso();const [a,b,c,d]=await Promise.all([db.from('ventas').select('*').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).single(),db.from('ventas_detalle').select('numero_linea,id_producto,cantidad,precio_unitario,subtotal').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).order('numero_linea'),db.from('cobros_clientes').select('fecha_cobro,importe,medio_pago,origen,estado').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).order('fecha_cobro'),db.from('cuentas_cobrar').select('saldo_pendiente,estado,total_cobrado').eq('id_negocio',perfil.id_negocio).eq('id_venta',id).maybeSingle()]);for(const r of [a,b,c,d])if(r.error)throw r.error;const v=a.data,det=b.data||[],cob=c.data||[],deuda=d.data;const modal=$('venModal');modal.innerHTML=`<div class="ven-modal"><div class="ven-dialog"><h2>Venta ${esc(v.id_venta)}</h2><div class="ven-row" style="justify-content:space-between"><span>${esc(venFecha(v.fecha_venta))} · ${esc(v.cliente)}</span>${venEstado(v.estado)}</div><div class="ven-card" style="margin-top:16px"><h3>Productos</h3><div class="ven-table"><table class="ven-items"><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${det.map(p=>{const prod=ventasUI.productos.find(x=>x.id_producto===p.id_producto);return `<tr><td>${esc(prod?.nombre||p.id_producto)}</td><td>${venNumero(p.cantidad)}</td><td>${venDinero(p.precio_unitario)}</td><td>${venDinero(p.subtotal)}</td></tr>`;}).join('')}</tbody></table></div><div class="ven-totals" style="margin-top:12px"><div><span>Descuento</span><strong>${venDinero(v.descuento)}</strong></div><div><strong>Total</strong><strong class="ven-total">${venDinero(v.total)}</strong></div><div><span>Saldo pendiente</span><strong>${venDinero(deuda?.saldo_pendiente||0)}</strong></div></div></div><div class="ven-card"><h3>Cobros registrados</h3>${cob.length?cob.map(p=>`<div class="ven-product"><span>${esc(venFecha(p.fecha_cobro))} · ${esc(p.medio_pago)} · ${esc(p.origen)}</span><strong>${venDinero(p.importe)}</strong></div>`).join(''):'<div class="ven-muted">Sin cobros registrados.</div>'}</div><div class="ven-modal-foot"><button class="vi-client-btn alt" id="venCerrarDetalle">Cerrar</button><button class="vi-client-btn" id="venImprimir">Imprimir / Reimprimir</button>${v.estado==='CONFIRMADA'?'<button class="vi-client-btn alt" id="venDevolucionParcial">↩ Devolver productos</button><button class="vi-client-btn alt" id="venAnular">Anular venta</button>':''}</div></div></div>`;$('venCerrarDetalle').onclick=venCerrar;$('venImprimir').onclick=()=>venImprimir80(v,det,cob);if($('venAnular'))$('venAnular').onclick=()=>venAbrirAnulacion(v);if($('venDevolucionParcial'))$('venDevolucionParcial').onclick=()=>venAbrirDevolucionParcial(v.id_venta);;}catch(e){venToast('No se pudo abrir la venta',venError(e),'error');}}
 
 
 // ============================================================
@@ -144,4 +144,90 @@ async function venEjecutarAnulacion(id){
     venToast('Venta anulada',`${id} · Devolución pendiente: ${venDinero(data.devolucion_pendiente)}`,'exito');
   }catch(e){venToast('No se pudo anular',venError(e),'error');}
   finally{if(boton?.isConnected){boton.disabled=false;boton.textContent='Confirmar anulación';}}
+}
+
+// ============================================================
+// VICORA · Devoluciones parciales
+// Requiere RPC seguras en Supabase:
+// obtener_contexto_devolucion(p_id_venta)
+// registrar_devolucion_parcial(p_id_venta,p_productos,p_medio,p_motivo,p_reponer_stock)
+// No habilitar en producción hasta instalar/verificar las RPC.
+// ============================================================
+let venDevolucionEnProceso=false;
+let venContextoDevolucion=null;
+
+async function venAbrirDevolucionParcial(idVenta){
+  try{
+    await venAcceso();
+    const {data,error}=await db.rpc('obtener_contexto_devolucion',{p_id_venta:idVenta});
+    if(error)throw error;
+    if(!data?.ok)throw new Error(data?.mensaje||'No se pudo consultar la devolución.');
+    venContextoDevolucion=data;
+    const productos=(data.productos||[]).filter(p=>Number(p.disponible)>0);
+    if(!productos.length){venToast('Sin productos disponibles','Todos los artículos de esta venta ya fueron devueltos.','advertencia');return;}
+    const m=$('venModal');if(!m)return;
+    m.innerHTML=`<div class="ven-modal"><div class="ven-dialog" style="width:min(850px,100%)">
+      <h2>↩ Devolver productos · ${esc(idVenta)}</h2>
+      <p class="ven-info">Seleccioná las cantidades a devolver. El importe se calculará respetando los descuentos de la venta y se aplicará primero a la deuda pendiente.</p>
+      <div class="ven-table"><table class="ven-items"><thead><tr><th>Producto</th><th>Vendido</th><th>Disponible para devolver</th><th>Devolver</th></tr></thead><tbody>
+      ${productos.map(p=>`<tr><td>${esc(p.producto||p.nombre||p.id_producto)}</td><td>${venNumero(p.cantidad_original)}</td><td>${venNumero(p.disponible)}</td><td><input class="ven-input ven-qty" type="number" min="0" max="${Number(p.disponible)}" step="0.001" value="0" data-ven-dev-id="${esc(p.id_producto)}"></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="ven-card" style="margin-top:16px">
+      <label class="ven-label" for="venDevMotivo">Motivo de devolución (obligatorio)</label>
+      <textarea id="venDevMotivo" class="ven-input" maxlength="300" rows="3" placeholder="Explicá por qué se devuelve"></textarea>
+      <label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px"><input type="checkbox" id="venDevReponer" checked> Reincorporar los productos al stock disponible</label>
+      <p class="ven-muted" style="margin-top:6px">Desmarcá esta opción si los productos están dañados o no pueden volver a venderse.</p>
+      <label class="ven-label" for="venDevMedio" style="margin-top:14px">Medio de reintegro (si corresponde)</label>
+      <select class="ven-select" id="venDevMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select>
+      <div class="ven-info" id="venDevResumen">Seleccioná al menos un producto.</div></div>
+      <div class="ven-modal-foot"><button class="vi-client-btn alt" id="venDevCancelar">Cancelar</button><button class="vi-client-btn ok" id="venDevConfirmar">Confirmar devolución</button></div>
+      </div></div>`;
+    $('venDevCancelar').onclick=()=>venDetalle(idVenta);
+    m.querySelectorAll('[data-ven-dev-id]').forEach(x=>x.addEventListener('input',venActualizarResumenDevolucion));
+    $('venDevConfirmar').onclick=()=>venConfirmarDevolucionParcial(idVenta);
+    venActualizarResumenDevolucion();
+  }catch(e){venToast('No se pudo abrir la devolución',venError(e),'error');}
+}
+function venSeleccionDevolucion(){
+  const inputs=$('venModal')?.querySelectorAll('[data-ven-dev-id]')||[];
+  const items=[];
+  for(const input of inputs){
+    const cantidad=Number(input.value);
+    const p=(venContextoDevolucion?.productos||[]).find(x=>String(x.id_producto)===input.dataset.venDevId);
+    if(!p||!Number.isFinite(cantidad)||cantidad<0||cantidad>Number(p.disponible)+0.000001||Math.abs(cantidad*1000-Math.round(cantidad*1000))>0.00001)
+      throw new Error('Revisá las cantidades. No pueden superar lo disponible ni tener más de tres decimales.');
+    if(cantidad>0)items.push({id_producto:p.id_producto,cantidad});
+  }
+  return items;
+}
+function venActualizarResumenDevolucion(){
+  const el=$('venDevResumen');if(!el)return;
+  try{
+    const items=venSeleccionDevolucion();
+    if(!items.length){el.textContent='Seleccioná al menos un producto.';return;}
+    el.textContent=`${items.length} producto(s) seleccionado(s). El crédito, la reducción de deuda y el reintegro definitivo se calcularán y validarán en Supabase al confirmar.`;
+  }catch(e){el.textContent=venError(e);}
+}
+async function venConfirmarDevolucionParcial(idVenta){
+  if(venDevolucionEnProceso)return;
+  let items;
+  try{items=venSeleccionDevolucion();}catch(e){return venToast('Cantidades inválidas',venError(e),'advertencia');}
+  if(!items.length)return venToast('Sin productos','Seleccioná alguna cantidad para devolver.','advertencia');
+  const motivo=($('venDevMotivo')?.value||'').trim();
+  if(!motivo)return venToast('Motivo obligatorio','Ingresá el motivo de la devolución.','advertencia');
+  const medio=$('venDevMedio')?.value;
+  const reponer=$('venDevReponer')?.checked===true;
+  const ok=await confirmarVicora('Confirmar devolución',`¿Registrar la devolución de ${items.length} producto(s)? ${reponer?'Se reincorporarán al stock.':'No se reincorporarán al stock.'} Supabase calculará el ajuste económico.`);
+  if(!ok)return;
+  venDevolucionEnProceso=true;
+  const boton=$('venDevConfirmar');if(boton){boton.disabled=true;boton.textContent='Registrando...';}
+  try{
+    await venAcceso();
+    const {data,error}=await db.rpc('registrar_devolucion_parcial',{p_id_venta:idVenta,p_productos:items,p_medio:medio,p_motivo:motivo,p_reponer_stock:reponer});
+    if(error)throw error;
+    if(!data?.ok)throw new Error(data?.mensaje||'La base de datos no confirmó la devolución.');
+    venContextoDevolucion=null;venCerrar();await venCargar();
+    venToast('Devolución registrada',`Crédito: ${venDinero(data.credito)} · Deuda reducida: ${venDinero(data.deuda_reducida)} · Reintegro: ${venDinero(data.reintegro)}`,'exito');
+  }catch(e){venToast('No se pudo registrar la devolución',venError(e),'error');}
+  finally{venDevolucionEnProceso=false;if(boton?.isConnected){boton.disabled=false;boton.textContent='Confirmar devolución';}}
 }
