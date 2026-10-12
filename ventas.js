@@ -22,7 +22,15 @@ s.textContent+=`
 #venDevolucionParcial:hover{background:#0f766e!important;border-color:#0f766e!important}
 #venCerrarDetalle:focus-visible,#venDevolucionParcial:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
 `;
-document.head.appendChild(s);}
+s.textContent+=`
+/* Botones de detalle de venta: estilos con prioridad sobre el tema global */
+#venCerrarDetalle,#venCerrar {background:#dc2626!important;color:#fff!important;border:1px solid #dc2626!important;}
+#venCerrarDetalle:hover,#venCerrar:hover{background:#b91c1c!important;}
+#venAnular {background:#fff1f2!important;color:#be123c!important;border:1px solid #fda4af!important;}
+#venAnular:hover{background:#ffe4e6!important;}
+#venDevolucionParcial {background:#e6f6f4!important;color:#0f766e!important;border:1px solid #99d9d1!important;}
+#venDevolucionParcial:hover{background:#d2efeb!important;}
+`;document.head.appendChild(s);}
 async function mostrarVentas(boton){seleccionar(boton);venCss();$('contenidoPrincipal').innerHTML=`<div class="module-header"><div><h1 class="page-title">Ventas</h1><p class="page-subtitle">Registro y seguimiento de ventas · ${esc(negocio.nombre)}</p></div><div class="ven-row"><button class="vi-client-btn alt" id="venConfigPrint">⚙ Impresión</button><button class="vi-client-btn" id="venNueva">+ Nueva venta</button></div></div><div class="ven-card"><div class="ven-row"><div class="ven-field"><label class="ven-label" for="venBuscar">Buscar por número o cliente</label><input id="venBuscar" class="ven-input" placeholder="Ej.: VEN-000001"></div><div><label class="ven-label" for="venFiltro">Estado</label><select id="venFiltro" class="ven-select"><option value="">Todos</option><option>BORRADOR</option><option>CONFIRMADA</option><option>ANULADA</option></select></div><button class="vi-client-btn alt" id="venRecargar">Actualizar</button></div><div class="ven-muted" id="venContador" style="margin:14px 0">Cargando ventas...</div><div class="ven-table" id="venTabla"></div></div><div id="venModal"></div>`;
 $('venConfigPrint').onclick=venConfigImpresion;$('venNueva').onclick=venNueva;$('venRecargar').onclick=venCargar;$('venBuscar').oninput=venPintar;$('venFiltro').onchange=venPintar;await venCargar();}
 async function venCargar(){const t=$('venTabla');if(!t)return;t.innerHTML='<div class="ven-empty">Cargando...</div>';try{await venAcceso();const {data,error}=await db.from('ventas').select('id_venta,fecha_venta,cliente,total,modalidad_cobro,estado,cobrado_inicial').eq('id_negocio',perfil.id_negocio).order('fecha_venta',{ascending:false}).limit(500);if(error)throw error;ventasUI.lista=data||[];venPintar();}catch(e){t.innerHTML=`<div class="ven-empty">${esc(venError(e))}</div>`;venToast('No se pudieron cargar las ventas',venError(e),'error');}}
