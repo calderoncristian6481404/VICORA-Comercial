@@ -3,8 +3,6 @@
    clienteVerificarAcceso, notificarVicora, confirmarVicora, $.
 */
 'use strict';
-let venVisibles=15;
-function venVerMas(){venVisibles+=15;venPintar();}
 const ventasUI={lista:[],productos:[],clientes:[],carrito:[],modalidad:'CONTADO',cliente:'',descuento:0,anticipo:0,medio:'EFECTIVO',busqueda:'',cargando:false,guardando:false};
 const venDinero=n=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(n)||0);
 const venNumero=n=>Number(n||0).toLocaleString('es-AR',{maximumFractionDigits:3});
@@ -16,32 +14,11 @@ async function venAcceso(){await clienteVerificarAcceso();if(!db||!perfil?.id_ne
 function venEstado(v){return `<span class="badge ${v==='CONFIRMADA'?'badge-active':v==='ANULADA'?'badge-inactive':''}">${esc(v||'—')}</span>`;}
 function venCss(){if(document.getElementById('ventasCss'))return;const s=document.createElement('style');s.id='ventasCss';s.textContent=`
 .ven-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}.ven-card{background:#fff;border:1px solid #e2e8f0;border-radius:15px;padding:19px;margin-bottom:16px}.ven-card h3{margin:0 0 15px;color:#172554}.ven-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.ven-row>*{min-width:0}.ven-input,.ven-select{padding:11px;border:1px solid #cbd5e1;border-radius:9px;font:inherit;width:100%;background:#fff}.ven-label{display:block;font-size:12px;color:#475569;font-weight:700;margin-bottom:6px}.ven-field{flex:1;min-width:145px}.ven-items{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}.ven-items th,.ven-items td{padding:11px;border-bottom:1px solid #e2e8f0;text-align:left}.ven-items th{background:#f1f5f9}.ven-table{overflow:auto}.ven-muted{color:#64748b;font-size:12px}.ven-total{font-size:25px;font-weight:800;color:#172554}.ven-totals{display:grid;gap:9px}.ven-totals>div{display:flex;justify-content:space-between;gap:12px}.ven-list{width:100%;border-collapse:collapse;min-width:750px;font-size:13px}.ven-list th,.ven-list td{padding:12px;border-bottom:1px solid #e2e8f0;text-align:left}.ven-list th{background:#f1f5f9}.ven-qty{width:88px}.ven-product{display:flex;justify-content:space-between;gap:10px;padding:11px;border-bottom:1px solid #e2e8f0;align-items:center}.ven-product:last-child{border:0}.ven-busy{opacity:.6;pointer-events:none}.ven-info{padding:12px;border-radius:9px;background:#eff6ff;color:#1e40af;font-size:12px;margin:10px 0}.ven-empty{padding:24px;text-align:center;color:#64748b}.ven-modal{position:fixed;inset:0;z-index:3500;background:#0f172a99;display:grid;place-items:center;padding:18px}.ven-dialog{width:min(750px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:24px}.ven-dialog h2{color:#172554;margin-bottom:15px}.ven-modal-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}@media(max-width:1000px){.ven-grid{grid-template-columns:1fr}}`;
-s.textContent+=`
-/* Botones del pie del detalle de venta: colores propios, sin depender del tema global. */
-#venCerrarDetalle{background:#475569!important;color:#fff!important;border:1px solid #475569!important;font-weight:700}
-#venCerrarDetalle:hover{background:#334155!important;border-color:#334155!important}
-#venDevolucionParcial{background:#0d9488!important;color:#fff!important;border:1px solid #0d9488!important;font-weight:700}
-#venDevolucionParcial:hover{background:#0f766e!important;border-color:#0f766e!important}
-#venCerrarDetalle:focus-visible,#venDevolucionParcial:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
-`;
-s.textContent+=`
-/* Botones de detalle de venta: estilos con prioridad sobre el tema global */
-#venCerrarDetalle,#venCerrar {background:#dc2626!important;color:#fff!important;border:1px solid #dc2626!important;}
-#venCerrarDetalle:hover,#venCerrar:hover{background:#b91c1c!important;}
-#venAnular {background:#fff1f2!important;color:#be123c!important;border:1px solid #fda4af!important;}
-#venAnular:hover{background:#ffe4e6!important;}
-#venDevolucionParcial {background:#e6f6f4!important;color:#0f766e!important;border:1px solid #99d9d1!important;}
-#venDevolucionParcial:hover{background:#d2efeb!important;}
-
-/* En pantallas pequeñas, todos los botones del detalle deben quedar visibles. */
-.ven-modal-foot{display:flex!important;flex-wrap:wrap!important;justify-content:flex-start!important;gap:9px!important;width:100%!important;min-width:0!important}
-.ven-modal-foot .vi-client-btn{min-width:0!important;white-space:normal!important;overflow-wrap:break-word!important;flex:1 1 150px!important;padding:12px 10px!important;line-height:1.3!important}
-@media(max-width:600px){.ven-modal{padding:8px!important}.ven-dialog{padding:16px!important;max-height:calc(100dvh - 16px)!important;width:100%!important}.ven-modal-foot{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}.ven-modal-foot .vi-client-btn{width:100%!important;min-height:48px!important}.ven-modal-foot #venCerrarDetalle{order:4}.ven-modal-foot #venImprimir{order:1}.ven-modal-foot #venDevolucionParcial{order:2}.ven-modal-foot #venAnular{order:3}}
-`;document.head.appendChild(s);}
-async function mostrarVentas(boton){venVisibles=15;seleccionar(boton);venCss();$('contenidoPrincipal').innerHTML=`<div class="module-header"><div><h1 class="page-title">Ventas</h1><p class="page-subtitle">Registro y seguimiento de ventas · ${esc(negocio.nombre)}</p></div><div class="ven-row"><button class="vi-client-btn alt" id="venConfigPrint">⚙ Impresión</button><button class="vi-client-btn" id="venNueva">+ Nueva venta</button></div></div><div class="ven-card"><div class="ven-row"><div class="ven-field"><label class="ven-label" for="venBuscar">Buscar por número o cliente</label><input id="venBuscar" class="ven-input" placeholder="Ej.: VEN-000001"></div><div><label class="ven-label" for="venFiltro">Estado</label><select id="venFiltro" class="ven-select"><option value="">Todos</option><option>BORRADOR</option><option>CONFIRMADA</option><option>ANULADA</option></select></div><button class="vi-client-btn alt" id="venRecargar">Actualizar</button></div><div class="ven-muted" id="venContador" style="margin:14px 0">Cargando ventas...</div><div class="ven-table" id="venTabla"></div></div><div id="venModal"></div>`;
-$('venConfigPrint').onclick=venConfigImpresion;$('venNueva').onclick=venNueva;$('venRecargar').onclick=venCargar;$('venBuscar').oninput=()=>{venVisibles=15;venPintar();};$('venFiltro').onchange=()=>{venVisibles=15;venPintar();};await venCargar();}
+document.head.appendChild(s);}
+async function mostrarVentas(boton){seleccionar(boton);venCss();$('contenidoPrincipal').innerHTML=`<div class="module-header"><div><h1 class="page-title">Ventas</h1><p class="page-subtitle">Registro y seguimiento de ventas · ${esc(negocio.nombre)}</p></div><div class="ven-row"><button class="vi-client-btn alt" id="venConfigPrint">⚙ Impresión</button><button class="vi-client-btn" id="venNueva">+ Nueva venta</button></div></div><div class="ven-card"><div class="ven-row"><div class="ven-field"><label class="ven-label" for="venBuscar">Buscar por número o cliente</label><input id="venBuscar" class="ven-input" placeholder="Ej.: VEN-000001"></div><div><label class="ven-label" for="venFiltro">Estado</label><select id="venFiltro" class="ven-select"><option value="">Todos</option><option>BORRADOR</option><option>CONFIRMADA</option><option>ANULADA</option></select></div><button class="vi-client-btn alt" id="venRecargar">Actualizar</button></div><div class="ven-muted" id="venContador" style="margin:14px 0">Cargando ventas...</div><div class="ven-table" id="venTabla"></div></div><div id="venModal"></div>`;
+$('venConfigPrint').onclick=venConfigImpresion;$('venNueva').onclick=venNueva;$('venRecargar').onclick=venCargar;$('venBuscar').oninput=venPintar;$('venFiltro').onchange=venPintar;await venCargar();}
 async function venCargar(){const t=$('venTabla');if(!t)return;t.innerHTML='<div class="ven-empty">Cargando...</div>';try{await venAcceso();const {data,error}=await db.from('ventas').select('id_venta,fecha_venta,cliente,total,modalidad_cobro,estado,cobrado_inicial').eq('id_negocio',perfil.id_negocio).order('fecha_venta',{ascending:false}).limit(500);if(error)throw error;ventasUI.lista=data||[];venPintar();}catch(e){t.innerHTML=`<div class="ven-empty">${esc(venError(e))}</div>`;venToast('No se pudieron cargar las ventas',venError(e),'error');}}
-function venPintar(){const t=$('venTabla');if(!t)return;const q=($('venBuscar')?.value||'').toLocaleLowerCase(),estado=$('venFiltro')?.value||'';const lista=ventasUI.lista.filter(v=>(!estado||v.estado===estado)&&(!q||`${v.id_venta} ${v.cliente}`.toLocaleLowerCase().includes(q)));$('venContador').textContent=`Mostrando ${Math.min(venVisibles,lista.length)} de ${lista.length} ventas (últimas 500)`;t.innerHTML=lista.length?`<table class="ven-list"><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Modalidad</th><th>Estado</th><th>Acción</th></tr></thead><tbody>${lista.slice(0,venVisibles).map(v=>`<tr><td><strong>${esc(v.id_venta)}</strong></td><td>${esc(venFecha(v.fecha_venta))}</td><td>${esc(v.cliente)}</td><td>${venDinero(v.total)}</td><td>${esc(v.modalidad_cobro)}</td><td>${venEstado(v.estado)}</td><td><button class="vi-client-btn alt" data-ven-ver="${esc(v.id_venta)}">Ver</button></td></tr>`).join('')}</tbody></table>`:'<div class="ven-empty">No hay ventas para mostrar.</div>';if(lista.length>venVisibles)t.insertAdjacentHTML('beforeend',`<div class="vicora-ver-mas"><button class="vi-client-btn alt" onclick="venVerMas()">Ver más</button></div>`);t.querySelectorAll('[data-ven-ver]').forEach(b=>b.onclick=()=>venDetalle(b.dataset.venVer));}
+function venPintar(){const t=$('venTabla');if(!t)return;const q=($('venBuscar')?.value||'').toLocaleLowerCase(),estado=$('venFiltro')?.value||'';const lista=ventasUI.lista.filter(v=>(!estado||v.estado===estado)&&(!q||`${v.id_venta} ${v.cliente}`.toLocaleLowerCase().includes(q)));$('venContador').textContent=`Mostrando ${lista.length} de ${ventasUI.lista.length} ventas (últimas 500)`;t.innerHTML=lista.length?`<table class="ven-list"><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Modalidad</th><th>Estado</th><th>Acción</th></tr></thead><tbody>${lista.map(v=>`<tr><td><strong>${esc(v.id_venta)}</strong></td><td>${esc(venFecha(v.fecha_venta))}</td><td>${esc(v.cliente)}</td><td>${venDinero(v.total)}</td><td>${esc(v.modalidad_cobro)}</td><td>${venEstado(v.estado)}</td><td><button class="vi-client-btn alt" data-ven-ver="${esc(v.id_venta)}">Ver</button></td></tr>`).join('')}</tbody></table>`:'<div class="ven-empty">No hay ventas para mostrar.</div>';t.querySelectorAll('[data-ven-ver]').forEach(b=>b.onclick=()=>venDetalle(b.dataset.venVer));}
 async function venCatalogos(){await venAcceso();const [a,b]=await Promise.all([db.from('productos').select('id_producto,codigo,nombre,precio_venta,stock,unidad_medida,estado').eq('id_negocio',perfil.id_negocio).eq('estado','ACTIVO').order('nombre'),db.from('clientes').select('id_cliente,nombre,apellido,estado').eq('id_negocio',perfil.id_negocio).eq('estado','ACTIVO').order('nombre')]);if(a.error)throw a.error;if(b.error)throw b.error;ventasUI.productos=a.data||[];ventasUI.clientes=b.data||[];}
 async function venNueva(){try{await venCatalogos();ventasUI.carrito=[];ventasUI.modalidad='CONTADO';ventasUI.cliente='';ventasUI.descuento=0;ventasUI.anticipo=0;ventasUI.medio='EFECTIVO';venFormulario();}catch(e){venToast('No se pudo abrir Nueva venta',venError(e),'error');}}
 function venSubtotal(){return venN(ventasUI.carrito.reduce((s,p)=>s+venN(p.cantidad*p.precio),0));}
@@ -178,7 +155,6 @@ async function venEjecutarAnulacion(id){
 // ============================================================
 let venDevolucionEnProceso=false;
 let venContextoDevolucion=null;
-let venDevDatosFinancieros=null;
 
 async function venAbrirDevolucionParcial(idVenta){
   try{
@@ -187,18 +163,6 @@ async function venAbrirDevolucionParcial(idVenta){
     if(error)throw error;
     if(!data?.ok)throw new Error(data?.mensaje||'No se pudo consultar la devolución.');
     venContextoDevolucion=data;
-    venDevDatosFinancieros=null;
-    // Datos solo para la vista previa; Supabase sigue validando el importe definitivo.
-    try{
-      const [v,d,c,r]=await Promise.all([
-        db.from('ventas').select('total').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta).single(),
-        db.from('ventas_detalle').select('id_producto,cantidad,subtotal').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta),
-        db.from('cuentas_cobrar').select('saldo_pendiente').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta).maybeSingle(),
-        db.from('devoluciones_detalle').select('credito').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta)
-      ]);
-      if([v,d,c,r].some(x=>x.error))throw new Error('No se pudo consultar la vista previa');
-      venDevDatosFinancieros={total:Number(v.data?.total||0),detalles:d.data||[],deuda:Number(c.data?.saldo_pendiente||0),creditoPrevio:(r.data||[]).reduce((a,x)=>a+Number(x.credito||0),0)};
-    }catch(e){console.warn('Vista previa de reintegro no disponible:',e);}
     const productos=(data.productos||[]).filter(p=>Number(p.disponible)>0);
     if(!productos.length){venToast('Sin productos disponibles','Todos los artículos de esta venta ya fueron devueltos.','advertencia');return;}
     const m=$('venModal');if(!m)return;
@@ -213,9 +177,8 @@ async function venAbrirDevolucionParcial(idVenta){
       <textarea id="venDevMotivo" class="ven-input" maxlength="300" rows="3" placeholder="Explicá por qué se devuelve"></textarea>
       <label style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px"><input type="checkbox" id="venDevReponer" checked> Reincorporar los productos al stock disponible</label>
       <p class="ven-muted" style="margin-top:6px">Desmarcá esta opción si los productos están dañados o no pueden volver a venderse.</p>
-      <div id="venDevReintegroInfo" class="ven-info" style="margin-top:14px">Calculando si corresponde un reintegro...</div>
-      <div id="venDevMedioWrap" style="display:none"><label class="ven-label" for="venDevMedio">¿Cómo vas a devolver el dinero al cliente?</label>
-      <select class="ven-select" id="venDevMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select></div>
+      <label class="ven-label" for="venDevMedio" style="margin-top:14px">Medio de reintegro (si corresponde)</label>
+      <select class="ven-select" id="venDevMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select>
       <div class="ven-info" id="venDevResumen">Seleccioná al menos un producto.</div></div>
       <div class="ven-modal-foot"><button class="vi-client-btn alt" id="venDevCancelar">Cancelar</button><button class="vi-client-btn ok" id="venDevConfirmar">Confirmar devolución</button></div>
       </div></div>`;
@@ -237,44 +200,13 @@ function venSeleccionDevolucion(){
   }
   return items;
 }
-function venEstimarDevolucion(items){
-  const f=venDevDatosFinancieros;
-  if(!f)return null;
-  const bruto=f.detalles.reduce((s,p)=>s+Number(p.subtotal||0),0);
-  if(bruto<=0||f.total<=0)return null;
-  let seleccionado=0;
-  for(const item of items){
-    const lineas=f.detalles.filter(p=>String(p.id_producto)===String(item.id_producto));
-    const cant=lineas.reduce((s,p)=>s+Number(p.cantidad||0),0);
-    if(cant<=0)return null;
-    seleccionado+=lineas.reduce((s,p)=>s+Number(p.subtotal||0),0)*item.cantidad/cant;
-  }
-  // Vista previa orientativa. La función SQL decide el importe final con los redondeos.
-  const credito=Math.max(0,venN(f.total*seleccionado/bruto));
-  return {credito,deudaReducida:Math.min(credito,f.deuda),reintegro:Math.max(0,venN(credito-f.deuda))};
-}
 function venActualizarResumenDevolucion(){
-  const el=$('venDevResumen'),info=$('venDevReintegroInfo'),wrap=$('venDevMedioWrap');
-  if(!el)return;
-  if(wrap)wrap.style.display='none';
+  const el=$('venDevResumen');if(!el)return;
   try{
     const items=venSeleccionDevolucion();
-    if(!items.length){el.textContent='Seleccioná al menos un producto.';if(info)info.textContent='Elegí los productos para saber si corresponde devolver dinero.';return;}
-    const calculo=venEstimarDevolucion(items);
-    if(!calculo){
-      el.textContent='Supabase calculará los importes definitivos al confirmar.';
-      if(info)info.textContent='No se pudo calcular la vista previa. Elegí el medio solo si Supabase determina que corresponde un reintegro.';
-      if(wrap)wrap.style.display='block';
-      return;
-    }
-    el.textContent=`Crédito estimado: ${venDinero(calculo.credito)} · Deuda a reducir: ${venDinero(calculo.deudaReducida)}.`;
-    if(calculo.reintegro>0){
-      if(info)info.textContent=`Reintegro estimado: ${venDinero(calculo.reintegro)}. Seleccioná cómo entregarás el dinero.`;
-      if(wrap)wrap.style.display='block';
-    }else{
-      if(info)info.textContent='Sin reintegro de dinero: el importe se descontará de la cuenta corriente (o no corresponde devolver efectivo).';
-    }
-  }catch(e){el.textContent=venError(e);if(info)info.textContent='Revisá las cantidades seleccionadas.';}
+    if(!items.length){el.textContent='Seleccioná al menos un producto.';return;}
+    el.textContent=`${items.length} producto(s) seleccionado(s). El crédito, la reducción de deuda y el reintegro definitivo se calcularán y validarán en Supabase al confirmar.`;
+  }catch(e){el.textContent=venError(e);}
 }
 async function venConfirmarDevolucionParcial(idVenta){
   if(venDevolucionEnProceso)return;
@@ -283,7 +215,7 @@ async function venConfirmarDevolucionParcial(idVenta){
   if(!items.length)return venToast('Sin productos','Seleccioná alguna cantidad para devolver.','advertencia');
   const motivo=($('venDevMotivo')?.value||'').trim();
   if(!motivo)return venToast('Motivo obligatorio','Ingresá el motivo de la devolución.','advertencia');
-  const medio=$('venDevMedioWrap')?.style.display==='none'?null:$('venDevMedio')?.value;
+  const medio=$('venDevMedio')?.value;
   const reponer=$('venDevReponer')?.checked===true;
   const ok=await confirmarVicora('Confirmar devolución',`¿Registrar la devolución de ${items.length} producto(s)? ${reponer?'Se reincorporarán al stock.':'No se reincorporarán al stock.'} Supabase calculará el ajuste económico.`);
   if(!ok)return;
