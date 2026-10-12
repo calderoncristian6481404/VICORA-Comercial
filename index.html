@@ -1677,6 +1677,42 @@
 .btn-warning { background:#fff7ed !important; color:#9a3412 !important; border:1px solid #ffedd5 !important; }
 .btn-danger { background:#fff1f2 !important; color:#be123c !important; border:1px solid #ffe4e6 !important; }
 .btn-success { background:#ecfdf5 !important; color:#047857 !important; border:1px solid #d1fae5 !important; }
+
+/* VICORA - Ajuste final de colores de acciones (2026-10-12) */
+/* Acciones principales: azul original, sin afectar los botones secundarios. */
+.vi-client-btn:not(.alt):not(.warn):not(.ok),
+.btn-primary,
+.vi-client-toolbar > .vi-client-btn:not(.alt),
+.vi-prov-toolbar > .vi-client-btn:not(.alt) {
+  background:#2563eb !important; color:#ffffff !important; border:1px solid #2563eb !important;
+}
+.vi-client-btn:not(.alt):not(.warn):not(.ok):hover:not(:disabled),
+.btn-primary:hover:not(:disabled) {background:#1d4ed8 !important; border-color:#1d4ed8 !important;}
+/* Ver: azul tenue visible en Clientes, Productos y Proveedores. */
+.vi-client-actions button:first-child,
+.vi-client-actions button[data-producto-accion="ver"],
+.vi-prov-actions button:first-child {
+  background:#eaf2ff !important; color:#1d4ed8 !important; border:1px solid #c7dcff !important;
+}
+.vi-client-actions button:first-child:hover:not(:disabled),
+.vi-client-actions button[data-producto-accion="ver"]:hover:not(:disabled),
+.vi-prov-actions button:first-child:hover:not(:disabled) {background:#dbeafe !important;}
+/* Cerrar / Cancelar en modales: rojo sobrio como el diseño original. */
+.vi-client-footer > button.alt,
+.vi-client-footer > button[onclick^="cerrar"],
+#cerrarFichaProducto,
+#venCerrarDetalle, #venCerrar, #venCancelarAnulacion,
+#venCerrarDevolucion, #venCerrarDevolucionParcial {
+  background:#dc2626 !important; color:#ffffff !important; border:1px solid #dc2626 !important;
+}
+.vi-client-footer > button.alt:hover:not(:disabled),
+#venCerrarDetalle:hover:not(:disabled), #venCerrar:hover:not(:disabled) {
+  background:#b91c1c !important; border-color:#b91c1c !important;
+}
+/* Anular venta: rojo claro con texto de alto contraste. */
+#venAnular {background:#fff1f2 !important;color:#be123c !important;border:1px solid #fda4af !important;}
+#venAnular:hover:not(:disabled){background:#ffe4e6 !important;}
+
 </style></head><body><div id="vicoraToastArea" role="region" aria-label="Notificaciones del sistema" aria-live="polite"></div><div id="guard" class="vi-guard"><div><h2>VICORA Comercial</h2><p>Validando tu sesión...</p></div></div><div id="sistema">
 
 
