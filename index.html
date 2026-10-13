@@ -2745,22 +2745,54 @@ iniciar();
 <script id="vicoraMejorasMovilSuscripcionScript20261013">
 (function(){
  'use strict';
+ const SISTEMA='SIS-000001';
+ const zona='America/Argentina/Buenos_Aires';
+ let consultando=false;
  function fechaArg(x){const v=String(x||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(v)?v.slice(8)+'/'+v.slice(5,7)+'/'+v.slice(0,4):'No disponible';}
- function estado(){
-  const cont=document.querySelector('#contenidoPrincipal .vi-home');
-  if(!cont||document.getElementById('vicoraEstadoSuscripcion'))return;
-  const datos=(typeof suscripciones!=='undefined'&&Array.isArray(suscripciones)?suscripciones:[]).filter(x=>x.id_sistema==='SIS-000001'&&['ACTIVA','PRUEBA'].includes(String(x.estado||'').toUpperCase())&&x.proximo_vencimiento);
-  if(!datos.length)return;
-  const venc=datos.map(x=>String(x.proximo_vencimiento).slice(0,10)).sort()[0];
-  const hoy=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-  const dia=x=>Date.UTC(Number(x.slice(0,4)),Number(x.slice(5,7))-1,Number(x.slice(8,10)));
-  const faltan=Math.round((dia(venc)-dia(hoy))/86400000);
+ function diaUTC(x){if(!/^\d{4}-\d{2}-\d{2}$/.test(x))return NaN;return Date.UTC(+x.slice(0,4),+x.slice(5,7)-1,+x.slice(8,10));}
+ function hoyArgentina(){const partes=new Intl.DateTimeFormat('en-US',{timeZone:zona,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=Object.fromEntries(partes.map(p=>[p.type,p.value]));return v.year+'-'+v.month+'-'+v.day;}
+ function cajaBase(cont){
   const caja=document.createElement('section');caja.id='vicoraEstadoSuscripcion';caja.className='vi-estado-suscripcion';
   const izq=document.createElement('div'),tit=document.createElement('strong'),detalle=document.createElement('small'),pill=document.createElement('span');
-  tit.textContent='Estado de suscripción';detalle.textContent='Vencimiento: '+fechaArg(venc)+(faltan>=0?' · '+(faltan===0?'Vence hoy':faltan===1?'Falta 1 día':'Faltan '+faltan+' días'):'');
-  pill.className='vi-estado-pill'+(faltan<0?' vencido':faltan<=7?' proximo':'');pill.textContent=faltan<0?'Vencida':faltan<=7?'Próxima a vencer':'Activa';
+  tit.textContent='Tu suscripción de VICORA';detalle.textContent='Consultando los datos de tu negocio...';pill.className='vi-estado-pill';pill.textContent='Cargando';
   izq.append(tit,detalle);caja.append(izq,pill);
   const cab=cont.querySelector('.vi-heading');if(cab)cab.insertAdjacentElement('afterend',caja);else cont.prepend(caja);
+  return {caja,tit,detalle,pill};
+ }
+ async function estado(){
+  const cont=document.querySelector('#contenidoPrincipal .vi-home');
+  if(!cont||cont.querySelector('#vicoraEstadoSuscripcion')||consultando)return;
+  if(typeof db==='undefined'||!db||typeof perfil==='undefined'||!perfil?.id_negocio)return;
+  consultando=true;
+  const ui=cajaBase(cont);
+  try{
+   // La prueba se guarda en fecha_fin_prueba; proximo_vencimiento puede ser NULL.
+   // Siempre consultar únicamente el negocio autenticado; RLS debe seguir habilitado.
+   const {data,error}=await db.from('suscripciones')
+    .select('id_negocio,id_sistema,estado,fecha_inicio_prueba,fecha_fin_prueba,proximo_vencimiento')
+    .eq('id_negocio',perfil.id_negocio).eq('id_sistema',SISTEMA);
+   if(error)throw error;
+   if(!ui.caja.isConnected)return;
+   const filas=(data||[]).filter(x=>x.id_negocio===perfil.id_negocio&&x.id_sistema===SISTEMA);
+   const sub=filas.find(x=>String(x.estado||'').toUpperCase()==='PRUEBA')||filas.find(x=>String(x.estado||'').toUpperCase()==='ACTIVA')||filas[0];
+   if(!sub){ui.tit.textContent='Estado de suscripción';ui.detalle.textContent='No hay una suscripción disponible.';ui.pill.textContent='Sin datos';return;}
+   const prueba=String(sub.estado||'').toUpperCase()==='PRUEBA';
+   const venc=String(prueba?sub.fecha_fin_prueba:sub.proximo_vencimiento||'').slice(0,10);
+   const faltan=Math.round((diaUTC(venc)-diaUTC(hoyArgentina()))/86400000);
+   ui.tit.textContent=prueba?'Tu prueba gratuita':'Estado de suscripción';
+   if(!Number.isFinite(faltan)){
+    ui.detalle.textContent=prueba?'No se encontró la fecha de finalización de la prueba.':'No hay fecha de próximo vencimiento registrada.';
+    ui.pill.textContent=prueba?'Fecha pendiente':String(sub.estado||'Sin datos');return;
+   }
+   const dias=Math.max(0,faltan);
+   ui.detalle.textContent=(prueba?'Fin de prueba: ':'Vencimiento: ')+fechaArg(venc)+' · '+(faltan<0?'Plazo finalizado':faltan===0?'Vence hoy':faltan===1?'Falta 1 día':'Faltan '+faltan+' días');
+   ui.pill.className='vi-estado-pill'+(faltan<0?' vencido':faltan<=3?' proximo':'');
+   ui.pill.textContent=prueba?(faltan<0?'Prueba finalizada':faltan===0?'Último día':dias+' '+(dias===1?'día':'días')+' gratis'):(faltan<0?'Vencida':faltan<=3?'Próxima a vencer':'Activa');
+   if(prueba&&sub.fecha_inicio_prueba){ui.detalle.textContent+=' · Inicio: '+fechaArg(sub.fecha_inicio_prueba);}
+  }catch(e){
+   if(ui.caja.isConnected){ui.tit.textContent='Tu suscripción';ui.detalle.textContent='No se pudo consultar el plazo. Revisá la conexión o los permisos de lectura.';ui.pill.textContent='No disponible';}
+   console.warn('VICORA: error al consultar suscripción',e);
+  }finally{consultando=false;}
  }
  function configurarMenu(){
   if(document.getElementById('vicoraMenuMovil'))return;
