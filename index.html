@@ -2673,7 +2673,7 @@ iniciar();
  'use strict';
  const modulos=new Set(['inicio','clientes','productos','proveedores','ventas','compras','caja','cobros','pagos','reportes','gastos','presupuestos']);
  let restaurando=false, preparado=false;
- const panelListo=()=>document.getElementById('sistema')?.style.display==='block' && !!window.perfil;
+ const panelListo=()=>document.getElementById('sistema')?.style.display==='block' && typeof perfil!=='undefined' && !!perfil;
  function boton(dest){
    const botones=Array.from(document.querySelectorAll('.sidebar .menu-item[onclick]'));
    return botones.find(b=>dest==='inicio'?b.getAttribute('onclick').includes('mostrarInicio('):b.getAttribute('onclick').includes("mostrarModulo('"+dest+"'"));
@@ -2684,7 +2684,8 @@ iniciar();
    if(preparado||!panelListo())return;
    preparado=true;
    // El historial necesita una entrada real de Inicio y otra por cada módulo.
-   history.replaceState({...history.state,vicoraPantalla:'inicio'},'',direccion('inicio'));
+   history.replaceState({...history.state,vicoraPantalla:'base'},'',location.pathname+location.search);
+   history.pushState({...history.state,vicoraPantalla:'inicio'},'',direccion('inicio'));
  }
  function ir(dest){
    if(!preparado||restaurando||!modulos.has(dest))return;
@@ -2719,6 +2720,59 @@ iniciar();
    observer.observe(s,{attributes:true,attributeFilter:['style']});
    preparar();
  }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
+})();
+</script>
+<style id="vicoraMejorasMovilSuscripcion20261013">
+@media(max-width:760px){
+  body.vicora-menu-cerrado .sidebar{transform:translateX(-110%);pointer-events:none}
+  body.vicora-menu-cerrado .main{margin-left:0!important;padding-left:12px!important;padding-right:12px!important}
+  body.vicora-menu-cerrado .business-name{font-size:clamp(12px,3.2vw,16px);max-width:44vw;overflow:hidden;text-overflow:ellipsis}
+  .sidebar{transition:transform .2s ease}
+  .main{transition:margin-left .2s ease}
+  #vicoraMenuMovil{display:flex!important;position:fixed;left:9px;bottom:18px;z-index:180;background:#1d4ed8;color:white;border:1px solid #93c5fd;border-radius:13px;box-shadow:0 8px 22px #0f172a55;padding:11px 14px;font-size:13px;font-weight:800;align-items:center;gap:7px}
+  body:not(.vicora-menu-cerrado) #vicoraMenuMovil{left:75px}
+  .vi-home .vh-grid,.vi-home .vh-kpis{min-width:0}
+}
+#vicoraMenuMovil{display:none}
+.vi-estado-suscripcion{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:#fff;border:1px solid #bfdbfe;border-left:5px solid #2563eb;border-radius:14px;padding:15px 18px;margin-bottom:18px;box-shadow:0 4px 14px #0f172a0a}
+.vi-estado-suscripcion strong{color:#172554;display:block;margin-bottom:4px;font-size:14px}
+.vi-estado-suscripcion small{color:#475569;font-size:12px}
+.vi-estado-suscripcion .vi-estado-pill{background:#dcfce7;color:#166534;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:800}
+.vi-estado-suscripcion .vi-estado-pill.proximo{background:#fef3c7;color:#92400e}
+.vi-estado-suscripcion .vi-estado-pill.vencido{background:#fee2e2;color:#991b1b}
+</style>
+<script id="vicoraMejorasMovilSuscripcionScript20261013">
+(function(){
+ 'use strict';
+ function fechaArg(x){const v=String(x||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(v)?v.slice(8)+'/'+v.slice(5,7)+'/'+v.slice(0,4):'No disponible';}
+ function estado(){
+  const cont=document.querySelector('#contenidoPrincipal .vi-home');
+  if(!cont||document.getElementById('vicoraEstadoSuscripcion'))return;
+  const datos=(typeof suscripciones!=='undefined'&&Array.isArray(suscripciones)?suscripciones:[]).filter(x=>x.id_sistema==='SIS-000001'&&['ACTIVA','PRUEBA'].includes(String(x.estado||'').toUpperCase())&&x.proximo_vencimiento);
+  if(!datos.length)return;
+  const venc=datos.map(x=>String(x.proximo_vencimiento).slice(0,10)).sort()[0];
+  const hoy=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const dia=x=>Date.UTC(Number(x.slice(0,4)),Number(x.slice(5,7))-1,Number(x.slice(8,10)));
+  const faltan=Math.round((dia(venc)-dia(hoy))/86400000);
+  const caja=document.createElement('section');caja.id='vicoraEstadoSuscripcion';caja.className='vi-estado-suscripcion';
+  const izq=document.createElement('div'),tit=document.createElement('strong'),detalle=document.createElement('small'),pill=document.createElement('span');
+  tit.textContent='Estado de suscripción';detalle.textContent='Vencimiento: '+fechaArg(venc)+(faltan>=0?' · '+(faltan===0?'Vence hoy':faltan===1?'Falta 1 día':'Faltan '+faltan+' días'):'');
+  pill.className='vi-estado-pill'+(faltan<0?' vencido':faltan<=7?' proximo':'');pill.textContent=faltan<0?'Vencida':faltan<=7?'Próxima a vencer':'Activa';
+  izq.append(tit,detalle);caja.append(izq,pill);
+  const cab=cont.querySelector('.vi-heading');if(cab)cab.insertAdjacentElement('afterend',caja);else cont.prepend(caja);
+ }
+ function configurarMenu(){
+  if(document.getElementById('vicoraMenuMovil'))return;
+  const menu=document.querySelector('.sidebar');if(!menu)return;
+  const boton=document.createElement('button');boton.id='vicoraMenuMovil';boton.type='button';boton.setAttribute('aria-label','Mostrar u ocultar menú');
+  function actualizar(){const cerrado=document.body.classList.contains('vicora-menu-cerrado');boton.textContent=cerrado?'☰ Menú':'✕ Cerrar menú';boton.setAttribute('aria-expanded',String(!cerrado));}
+  if(window.matchMedia('(max-width:760px)').matches)document.body.classList.add('vicora-menu-cerrado');
+  boton.addEventListener('click',()=>{document.body.classList.toggle('vicora-menu-cerrado');actualizar();});
+  menu.addEventListener('click',e=>{if(e.target.closest('.menu-item')&&window.matchMedia('(max-width:760px)').matches){document.body.classList.add('vicora-menu-cerrado');actualizar();}});
+  document.body.append(boton);actualizar();
+ }
+ function iniciar(){configurarMenu();const c=document.getElementById('contenidoPrincipal');if(c){new MutationObserver(estado).observe(c,{childList:true});estado();}}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
 })();
 </script>
