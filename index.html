@@ -2136,6 +2136,7 @@ async function iniciar(){
   $('rolUsuario').textContent=perfil.rol;
   $('avatarUsuario').textContent=(perfil.nombre||'V').trim().charAt(0).toUpperCase();
   $('guard').style.display='none';$('sistema').style.display='block';mostrarInicio(document.querySelector('.sidebar .menu-item'));
+   setTimeout(()=>vicoraAvisarVencimiento(suscripciones),350);
  }catch(err){mensajeBloqueo('No se pudo habilitar el panel: '+String(err?.message||err));}
 }
 function seleccionar(boton){document.querySelectorAll('.sidebar .menu-item').forEach(b=>b.classList.remove('active'));if(boton)boton.classList.add('active');}
@@ -2159,6 +2160,65 @@ function notificarVicora(titulo, mensaje='', tipo='info'){
  cerrar.addEventListener('click',quitar);toast.append(ico,contenido,cerrar);area.prepend(toast);
  while(area.children.length>3)area.lastElementChild.remove();
  temporizador=setTimeout(quitar,clase==='error'?8000:5000);
+}
+
+
+// VICORA Comercial · Recordatorios informativos de suscripción.
+// La autorización y el bloqueo continúan controlados por Supabase.
+function vicoraAvisarVencimiento(lista){
+ try{
+  const subs=(Array.isArray(lista)?lista:[]).filter(s=>
+   s.id_negocio===perfil?.id_negocio && s.id_sistema==='SIS-000001' &&
+   ['ACTIVA','PRUEBA'].includes(String(s.estado||'').toUpperCase()) &&
+   /^\d{4}-\d{2}-\d{2}/.test(String(s.proximo_vencimiento||'')));
+  if(!subs.length)return;
+  const venc=subs.map(s=>String(s.proximo_vencimiento).slice(0,10)).sort()[0];
+  const hoy=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const utcDia=x=>Date.UTC(...x.split('-').map((n,i)=>i===1?Number(n)-1:Number(n)));
+  const dias=Math.round((utcDia(venc)-utcDia(hoy))/86400000);
+  if(!Number.isFinite(dias)||dias>7)return;
+  const clave='vicora_aviso_vencimiento_'+perfil.id_negocio+'_'+hoy+'_'+venc;
+  if(sessionStorage.getItem(clave)==='1')return;
+  const anterior=document.getElementById('vicoraAvisoSuscripcion');
+  if(anterior)anterior.remove();
+  const overlay=document.createElement('div');
+  overlay.id='vicoraAvisoSuscripcion';
+  overlay.setAttribute('role','dialog');
+  overlay.setAttribute('aria-modal','true');
+  overlay.setAttribute('aria-labelledby','vicoraAvisoTitulo');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.67);z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(4px)';
+  const tarjeta=document.createElement('div');
+  tarjeta.style.cssText='width:min(450px,100%);background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 25px 75px #0f172a55;text-align:center;font-family:Arial,sans-serif;color:#172554';
+  const icono=document.createElement('div');
+  icono.textContent=dias<=1?'⚠️':'📅';
+  icono.style.cssText='font-size:38px;margin-bottom:10px';
+  const titulo=document.createElement('h2');
+  titulo.id='vicoraAvisoTitulo';
+  titulo.textContent=dias<0?'Suscripción vencida':dias===0?'Tu suscripción vence hoy':'Tu suscripción vence pronto';
+  titulo.style.cssText='font-size:22px;margin:0 0 12px';
+  const destacado=document.createElement('p');
+  destacado.textContent=dias>1?'Faltan '+dias+' días':dias===1?'Falta 1 día':dias===0?'Vence hoy':'Vencimiento registrado';
+  destacado.style.cssText='font-size:25px;font-weight:800;color:'+(dias<=1?'#b45309':'#2563eb')+';margin:0 0 12px';
+  const descripcion=document.createElement('p');
+  descripcion.textContent=dias<0?'Consultá con soporte para regularizar tu suscripción.':`La suscripción de VICORA Comercial vence el ${venc.slice(8,10)}/${venc.slice(5,7)}/${venc.slice(0,4)}. Comunicate con soporte para gestionar la renovación y evitar interrupciones.`;
+  descripcion.style.cssText='font-size:14px;line-height:1.6;color:#475569;margin:0 0 20px';
+  const acciones=document.createElement('div');
+  acciones.style.cssText='display:flex;gap:10px;justify-content:center;flex-wrap:wrap';
+  const consultar=document.createElement('a');
+  consultar.href='https://wa.me/5493544402025?text='+encodeURIComponent('Hola, quiero consultar por la renovación de VICORA Comercial de mi negocio.');
+  consultar.target='_blank';consultar.rel='noopener noreferrer';
+  consultar.textContent='Consultar renovación';
+  consultar.style.cssText='background:#2563eb;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700;font-size:13px';
+  const cerrar=document.createElement('button');
+  cerrar.type='button';cerrar.textContent='Entendido';
+  cerrar.style.cssText='background:#e2e8f0;color:#334155;padding:12px 16px;border:0;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer';
+  cerrar.onclick=()=>{sessionStorage.setItem(clave,'1');overlay.remove()};
+  acciones.append(consultar,cerrar);
+  tarjeta.append(icono,titulo,destacado,descripcion,acciones);
+  overlay.append(tarjeta);
+  document.body.append(overlay);
+  cerrar.focus();
+ }catch(e){console.warn('No se pudo mostrar el recordatorio de suscripción:',e)}
 }
 
 // CLIENTES · Consultas y escrituras bajo la sesión real y RLS de Supabase.
