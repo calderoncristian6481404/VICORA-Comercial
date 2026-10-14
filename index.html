@@ -2051,6 +2051,12 @@ tbody tr[hidden]{display:none!important}
 
       <button type="button" class="menu-item" onclick="mostrarModulo('presupuestos', this)"><span class="menu-icon">📋</span><span>Presupuestos</span></button>
 
+      <div class="menu-title">Cuenta</div>
+      <button type="button" class="menu-item" onclick="vicoraMostrarMiSuscripcion(this)">
+        <span class="menu-icon" title="Mi suscripción">🔄</span>
+        <span>Mi suscripción</span>
+      </button>
+
       <!-- =================================================
            CERRAR SESIÓN
            ================================================= -->
@@ -2926,4 +2932,40 @@ iniciar();
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
 })();
 </script>
+
+<style id="vicoraMiSuscripcionEstilos20261014">
+.vi-sub-head{margin-bottom:20px}.vi-sub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.vi-sub-card{background:#fff;border:1px solid #dbe3ec;border-radius:16px;padding:22px;box-shadow:0 5px 18px #0f172a0a}.vi-sub-card h2{font-size:17px;color:#172554;margin:0 0 12px}.vi-sub-card p{color:#475569;font-size:13px;line-height:1.6;margin:0 0 14px}.vi-sub-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.vi-sub-fact{padding:13px;background:#f8fafc;border-radius:10px;overflow-wrap:anywhere}.vi-sub-fact small{display:block;font-size:11px;color:#64748b;margin-bottom:5px}.vi-sub-fact strong{color:#172554;font-size:14px}.vi-sub-pill{display:inline-block;padding:5px 10px;border-radius:20px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:800;margin-bottom:12px}.vi-sub-button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;padding:11px 15px;background:#2563eb;color:#fff;font-weight:700;font-size:13px}.vi-sub-button:disabled{background:#e2e8f0;color:#64748b;cursor:not-allowed}.vi-sub-note{margin-top:18px;padding:13px 16px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:13px;line-height:1.6}@media(max-width:850px){.vi-sub-grid,.vi-sub-facts{grid-template-columns:1fr}.vi-sub-card{padding:16px}}
+</style>
+<script id="vicoraMiSuscripcionScript20261014">
+async function vicoraMostrarMiSuscripcion(boton){
+  if(typeof seleccionar==='function')seleccionar(boton);
+  const cont=document.getElementById('contenidoPrincipal');
+  if(!cont)return;
+  cont.innerHTML=`<div class="vi-sub-head"><h1 class="page-title">Mi suscripción</h1><p class="page-subtitle">Consultá tu plan y las modalidades de pago disponibles para VICORA Comercial.</p></div><div id="viSubEstado" class="vi-sub-card" role="status">Consultando tu suscripción...</div><div class="vi-sub-grid" style="margin-top:16px"><section class="vi-sub-card"><span class="vi-sub-pill">Pago manual</span><h2>Transferencia bancaria</h2><p>Podés coordinar una transferencia con el administrador de VICORA. El pago se registra cuando se verifica su acreditación.</p><button type="button" class="vi-sub-button" disabled title="Los datos de transferencia todavía no están configurados">Solicitar datos de transferencia (próximamente)</button></section><section class="vi-sub-card"><span class="vi-sub-pill">En preparación</span><h2>Suscripción automática con Mercado Pago</h2><p>Permitirá autorizar cobros mensuales recurrentes. Todavía estamos probando la vinculación segura de los negocios y la confirmación de los pagos.</p><button type="button" class="vi-sub-button" disabled title="No se realizan cobros ni autorizaciones todavía">Activar pago automático (próximamente)</button></section></div><div class="vi-sub-note">Esta pantalla es informativa. No cambia tu modalidad de pago, no crea suscripciones y no genera cobros.</div>`;
+  const caja=document.getElementById('viSubEstado');
+  try{
+    if(!db||!perfil||!negocio)throw new Error('Iniciá sesión nuevamente para consultar los datos.');
+    const {data,error}=await db.from('suscripciones').select('id_suscripcion,id_negocio,id_sistema,estado,modalidad_pago,fecha_fin_prueba,proximo_vencimiento,id_suscripcion_mp,id_plan').eq('id_negocio',perfil.id_negocio).eq('id_sistema','SIS-000001').limit(2);
+    if(error)throw error;
+    if(!data||data.length!==1)throw new Error('No se encontró una única suscripción para tu negocio.');
+    const sub=data[0];
+    const formato=(v)=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?`${v.slice(8,10)}/${v.slice(5,7)}/${v.slice(0,4)}`:'Sin definir';
+    const modalidad=sub.id_suscripcion_mp?'Mercado Pago':String(sub.modalidad_pago||'Sin definir').toUpperCase()==='MANUAL'?'Manual':'Sin definir';
+    const estado=String(sub.estado||'Sin definir').toUpperCase();
+    const fecha=estado==='PRUEBA'?sub.fecha_fin_prueba:sub.proximo_vencimiento;
+    const nombreFecha=estado==='PRUEBA'?'Fin de prueba gratuita':'Próximo vencimiento';
+    caja.textContent='';
+    const titulo=document.createElement('h2');titulo.textContent='Estado de tu plan · VICORA Comercial';
+    const facts=document.createElement('div');facts.className='vi-sub-facts';
+    for(const [label,value] of [['Negocio',negocio.nombre],['Estado',estado],['Modalidad actual',modalidad],[nombreFecha,formato(fecha)]]){
+      const celda=document.createElement('div');celda.className='vi-sub-fact';
+      const small=document.createElement('small');small.textContent=label;
+      const strong=document.createElement('strong');strong.textContent=String(value||'Sin definir');
+      celda.append(small,strong);facts.append(celda);
+    }
+    caja.append(titulo,facts);
+  }catch(e){if(caja&&caja.isConnected)caja.textContent='No se pudo consultar la suscripción: '+String(e?.message||e);}
+}
+</script>
+
 </body></html>
