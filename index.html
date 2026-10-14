@@ -2857,4 +2857,73 @@ iniciar();
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
 })();
 </script>
+
+<!-- VICORA Comercial · Avisos de aumentos programados · 2026-10-14 -->
+<style id="vicoraAumentoAvisoEstilos">
+ .vicora-aumento-aviso{display:flex;align-items:flex-start;gap:13px;background:#fffbeb;border:1px solid #fcd34d;border-left:5px solid #d97706;border-radius:14px;padding:17px 18px;margin:0 0 18px;color:#78350f;box-shadow:0 4px 15px #92400e0c}
+ .vicora-aumento-aviso .va-aumento-icon{font-size:26px;line-height:1.2;flex-shrink:0}
+ .vicora-aumento-aviso .va-aumento-texto{flex:1;min-width:0}
+ .vicora-aumento-aviso strong{display:block;font-size:15px;margin-bottom:6px;color:#92400e}
+ .vicora-aumento-aviso p{font-size:13px;line-height:1.6;margin:0 0 7px;overflow-wrap:anywhere}
+ .vicora-aumento-aviso small{font-size:11px;color:#92400e}
+ .vicora-aumento-aviso button{border:1px solid #fcd34d;border-radius:8px;background:#fff;color:#92400e;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
+ @media(max-width:600px){.vicora-aumento-aviso{padding:13px;gap:9px;flex-wrap:wrap}.vicora-aumento-aviso button{margin-left:auto}}
+</style>
+<script id="vicoraAumentoAvisoControl">
+(function(){
+ 'use strict';
+ let cache=null, pendiente=null, ultimaConsulta=0, consultando=false;
+ const dinero=new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:2});
+ function fechaAR(s){const x=String(s||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(8,10)+'/'+x.slice(5,7)+'/'+x.slice(0,4):'Fecha por confirmar';}
+ function contenedor(){return document.querySelector('#contenidoPrincipal .vi-home');}
+ function fueVisto(a){try{return sessionStorage.getItem('vicora_aumento_visto_'+String(perfil.id_negocio)+'_'+a.id_aumento)==='1';}catch(e){return false;}}
+ function render(){
+  const home=contenedor();if(!home||!Array.isArray(cache))return;
+  home.querySelectorAll('.vicora-aumento-aviso').forEach(x=>x.remove());
+  const cab=home.querySelector('.vi-heading');
+  for(const a of cache){
+   if(a.estado!=='PENDIENTE')continue;
+   const el=document.createElement('section');el.className='vicora-aumento-aviso';el.setAttribute('aria-label','Aviso de actualización de tarifa');
+   const icon=document.createElement('span');icon.className='va-aumento-icon';icon.textContent='📢';icon.setAttribute('aria-hidden','true');
+   const txt=document.createElement('div');txt.className='va-aumento-texto';
+   const titulo=document.createElement('strong');titulo.textContent='Aviso de actualización de tarifa';
+   const p=document.createElement('p');
+   p.textContent='Se ha programado una actualización del precio mensual de '+String(a.plan||'VICORA Comercial')+': de '+dinero.format(Number(a.precio_anterior))+' a '+dinero.format(Number(a.precio_nuevo))+', con fecha prevista '+fechaAR(a.fecha_prevista)+'.';
+   const aclaracion=document.createElement('small');aclaracion.textContent='El cambio aún no fue aplicado y requiere confirmación administrativa. Este aviso no es un cobro.';
+   txt.append(titulo,p,aclaracion);
+   const boton=document.createElement('button');boton.type='button';boton.textContent='Entendido';
+   boton.addEventListener('click',()=>{el.remove();try{sessionStorage.setItem('vicora_aumento_visto_'+String(perfil.id_negocio)+'_'+a.id_aumento,'1');}catch(e){}});
+   if(fueVisto(a))continue;
+   el.append(icon,txt,boton);
+   if(cab)cab.insertAdjacentElement('afterend',el);else home.prepend(el);
+  }
+ }
+ async function consultar(){
+  if(consultando||!contenedor()||typeof db==='undefined'||!db||typeof perfil==='undefined'||!perfil?.id_negocio)return;
+  if(Array.isArray(cache)&&Date.now()-ultimaConsulta<120000){if(!contenedor().querySelector('.vicora-aumento-aviso') && cache.some(a=>a.estado==='PENDIENTE' && !fueVisto(a)))render();return;}
+  consultando=true;
+  const id=perfil.id_negocio;
+  try{
+   const {data,error}=await db.rpc('vicora_comercial_avisos_aumento');
+   if(error)throw error;
+   if(perfil?.id_negocio!==id)return;
+   cache=Array.isArray(data)?data:[];ultimaConsulta=Date.now();render();
+  }catch(e){console.warn('VICORA: no se pudieron consultar avisos de aumento',e);}
+  finally{consultando=false;}
+ }
+ function iniciar(){
+  const c=document.getElementById('contenidoPrincipal');if(!c)return;
+  const observer=new MutationObserver(()=>{
+   if(!contenedor())return;
+   if(Array.isArray(cache)&&Date.now()-ultimaConsulta<120000){
+    if(!contenedor().querySelector('.vicora-aumento-aviso') && cache.some(a=>a.estado==='PENDIENTE' && !fueVisto(a)))render();
+   }else consultar();
+  });
+  observer.observe(c,{childList:true});
+  consultar();
+  window.addEventListener('focus',()=>{if(contenedor()&&Date.now()-ultimaConsulta>=120000)consultar();});
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
+})();
+</script>
 </body></html>
