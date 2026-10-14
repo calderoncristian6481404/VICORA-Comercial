@@ -2808,4 +2808,53 @@ iniciar();
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
 })();
 </script>
+
+<!-- VICORA COMERCIAL · VERSION CENTRALIZADA · 2026-10-14 -->
+<style id="vicoraVersionEstilos">
+ .vicora-version-info{margin:14px 7px 5px;padding:12px 9px;border-top:1px solid #374151;color:#cbd5e1;font-size:11px;line-height:1.6;text-align:center}
+ .vicora-version-info strong{display:block;color:#fff;font-size:12px}
+ .vicora-version-info small{display:block;color:#94a3b8;font-size:10px}
+ .vicora-version-info button{margin-top:7px;padding:5px 8px;border:1px solid #475569;background:transparent;color:#bfdbfe;border-radius:7px;font-size:10px;cursor:pointer}
+ .vicora-version-info button:hover{background:#334155}
+ .vicora-version-aviso{position:fixed;right:18px;bottom:20px;z-index:9000;width:min(365px,calc(100vw - 36px));padding:15px 16px;background:#fff;border:1px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:13px;box-shadow:0 15px 40px #0f172a33;color:#1e293b;font-size:13px;line-height:1.5}
+ .vicora-version-aviso strong{display:block;color:#172554;margin-bottom:4px}
+ .vicora-version-aviso button{margin-top:10px;padding:8px 13px;background:#2563eb;color:#fff;border:0;border-radius:8px;font-weight:700}
+ @media(max-width:760px){.vicora-version-info{margin:12px 0 5px;padding:10px 0;font-size:9px}.vicora-version-info small,.vicora-version-info button{display:none}.vicora-version-info strong{font-size:9px}.vicora-version-aviso{bottom:70px}}
+</style>
+<script id="vicoraVersionControl">
+(function(){
+ 'use strict';
+ // CAMBIAR SOLO AQUÍ al publicar una versión nueva.
+ const VERSION={numero:'1.0.0',fecha:'14/10/2026',cambios:'Se incorporó el control de versiones de VICORA Comercial.'};
+ const CLAVE='vicora_comercial_version_vista';
+ window.VICORA_VERSION=Object.freeze({...VERSION});
+ function crearVersion(){
+  const menu=document.querySelector('.sidebar');
+  if(!menu||document.getElementById('vicoraVersionInfo'))return;
+  const cont=document.createElement('div');cont.id='vicoraVersionInfo';cont.className='vicora-version-info';
+  const titulo=document.createElement('strong');titulo.textContent='Versión '+VERSION.numero;
+  const fecha=document.createElement('small');fecha.textContent='Actualizada: '+VERSION.fecha;
+  const boton=document.createElement('button');boton.type='button';boton.textContent='Novedades';boton.onclick=()=>mostrarAviso(false);
+  cont.append(titulo,fecha,boton);
+  menu.append(cont);
+ }
+ function mostrarAviso(automatica){
+  if(document.getElementById('vicoraVersionAviso'))return;
+  const aviso=document.createElement('div');aviso.id='vicoraVersionAviso';aviso.className='vicora-version-aviso';aviso.setAttribute('role','status');
+  const titulo=document.createElement('strong');titulo.textContent=(automatica?'VICORA Comercial se actualizó':'Novedades de VICORA')+' · v'+VERSION.numero;
+  const texto=document.createElement('div');texto.textContent=VERSION.cambios;
+  const boton=document.createElement('button');boton.type='button';boton.textContent='Entendido';boton.onclick=()=>aviso.remove();
+  aviso.append(titulo,texto,boton);document.body.append(aviso);
+ }
+ function iniciar(){
+  crearVersion();
+  try{
+   const anterior=localStorage.getItem(CLAVE);
+   if(anterior&&anterior!==VERSION.numero)mostrarAviso(true);
+   localStorage.setItem(CLAVE,VERSION.numero);
+  }catch(e){/* Navegadores con almacenamiento bloqueado: la versión sigue visible. */}
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar,{once:true});else iniciar();
+})();
+</script>
 </body></html>
