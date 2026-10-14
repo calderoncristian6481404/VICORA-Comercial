@@ -80,8 +80,8 @@ async function venDetalle(id){try{await venAcceso();const [a,b,c,d]=await Promis
 // Preferencias por negocio y navegador. No son configuración remota ni selección de dispositivo.
 function venClaveImpresion(){return 'vicora_impresion_v2_'+String(perfil?.id_negocio||'sin_negocio');}
 function venPreferenciasImpresion(){
-  const base={papel:'80',logo:true};
-  try{const dato=JSON.parse(localStorage.getItem(venClaveImpresion())||'{}');return {papel:['80','58','A4'].includes(dato.papel)?dato.papel:'80',logo:dato.logo!==false};}
+  const base={papel:'80'};
+  try{const dato=JSON.parse(localStorage.getItem(venClaveImpresion())||'{}');return {papel:['80','58','A4'].includes(dato.papel)?dato.papel:'80'};}
   catch(e){return base;}
 }
 function venConfigImpresion(){
@@ -92,14 +92,13 @@ function venConfigImpresion(){
     <p class="ven-info">Elegí el papel para este negocio en este navegador. La impresora USB o Bluetooth debe estar instalada en el sistema operativo. La selección de impresora se realiza al imprimir.</p>
     <label class="ven-label" for="venPapel">Tamaño del comprobante</label>
     <select id="venPapel" class="ven-select"><option value="80">Ticket térmico 80 mm</option><option value="58">Ticket térmico 58 mm</option><option value="A4">Hoja A4</option></select>
-    <label style="display:flex;align-items:center;gap:10px;margin-top:16px"><input type="checkbox" id="venMostrarLogo"> Mostrar logo del negocio si está configurado</label>
     <p class="ven-muted" style="margin-top:15px">La reimpresión está disponible desde el detalle de cualquier venta. En el diálogo del navegador, seleccioná el papel y la impresora correcta; el navegador no permite fijarlos automáticamente.</p>
     <div class="ven-modal-foot"><button class="vi-client-btn alt" id="venConfigCancelar">Cancelar</button><button class="vi-client-btn" id="venConfigGuardar">Guardar preferencias</button></div>
   </div></div>`;
-  $('venPapel').value=conf.papel;$('venMostrarLogo').checked=conf.logo;
+  $('venPapel').value=conf.papel;
   $('venConfigCancelar').onclick=venCerrar;
   $('venConfigGuardar').onclick=()=>{
-    try{localStorage.setItem(venClaveImpresion(),JSON.stringify({papel:$('venPapel').value,logo:$('venMostrarLogo').checked}));venCerrar();venToast('Impresión configurada','Preferencias guardadas en este navegador.','exito');}
+    try{localStorage.setItem(venClaveImpresion(),JSON.stringify({papel:$('venPapel').value}));venCerrar();venToast('Impresión configurada','Preferencias guardadas en este navegador.','exito');}
     catch(e){venToast('No se pudo guardar',venError(e),'error');}
   };
 }
@@ -111,9 +110,6 @@ function venImprimir80(v,det,cob){
   const ancho=papel==='58'?58:papel==='80'?80:210;
   const area=papel==='58'?50:papel==='80'?72:190;
   const pagina=papel==='A4'?'A4':'80'===papel?'80mm 200mm':'58mm 200mm';
-  const logoCandidato=negocio?.logo_url||negocio?.url_logo||negocio?.logo||'';
-  const logoSeguro=typeof logoCandidato==='string'&&/^https:\/\//i.test(logoCandidato)?logoCandidato:'';
-  const logoHtml=conf.logo&&logoSeguro?`<img class="logo" src="${esc(logoSeguro)}" alt="Logo del negocio">`:'';
   const detalle=(det||[]).map(p=>{const prod=ventasUI.productos.find(x=>x.id_producto===p.id_producto);
     return `<tr><td colspan="2" class="nombre">${esc(prod?.nombre||p.id_producto)}</td></tr><tr><td>${esc(venNumero(p.cantidad))} x ${esc(venDinero(p.precio_unitario))}</td><td class="derecha">${esc(venDinero(p.subtotal))}</td></tr>`;
   }).join('');
@@ -121,13 +117,13 @@ function venImprimir80(v,det,cob){
   const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket ${esc(v.id_venta)}</title><style>
   @page{size:${pagina};margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#000}
   body{font:12px/1.35 Arial,sans-serif;width:${ancho}mm;padding:3mm 4mm;overflow-wrap:anywhere}
-  .ticket{width:100%;max-width:${area}mm;margin:0 auto}.logo{display:block;max-width:35mm;max-height:22mm;object-fit:contain;margin:0 auto 5px}
+  .ticket{width:100%;max-width:${area}mm;margin:0 auto}
   h1{font-size:17px;text-align:center;margin:0 0 6px}.centro{text-align:center}.derecha{text-align:right}
   .linea{border-top:1px dashed #000;margin:8px 0}.nombre{padding-top:5px}table{width:100%;border-collapse:collapse;table-layout:fixed}td{vertical-align:top;padding:2px 0}td:last-child{width:42%}
   .total{font-size:16px;font-weight:bold}.estado{font-size:16px;font-weight:bold;text-align:center;margin:8px 0}
   @media screen{body{margin:12px auto;border:1px solid #ddd}.ayuda{font:12px Arial;margin:8px auto;text-align:center}}
   @media print{html,body{width:${ancho}mm!important;min-height:0!important}.ayuda{display:none!important}}
-  </style></head><body><div class="ticket">${logoHtml}<h1>${esc(negocio?.nombre||'VICORA')}</h1><div class="centro">Comprobante de venta</div>
+  </style></head><body><div class="ticket"><h1>${esc(negocio?.nombre||'VICORA')}</h1><div class="centro">Comprobante de venta</div>
   <div class="linea"></div><div>Venta: ${esc(v.id_venta)}</div><div>Fecha: ${esc(venFecha(v.fecha_venta))}</div>
   <div>Cliente: ${esc(v.cliente||'Consumidor final')}</div><div class="linea"></div>
   <table><tbody>${detalle}</tbody></table><div class="linea"></div>
