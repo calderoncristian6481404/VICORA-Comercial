@@ -3013,7 +3013,7 @@ function vicoraManualAplicarEstado(info){
   const avisoWhatsApp=document.getElementById('viManualAvisarWhatsApp');
   const estado=String(info?.estado||'SIN_SOLICITUD').toUpperCase();
   vicoraManualSolicitudEstado=estado;
-  if(avisoWhatsApp)avisoWhatsApp.hidden=(estado!=='PENDIENTE');
+  if(avisoWhatsApp){avisoWhatsApp.hidden=false;avisoWhatsApp.disabled=(estado!=='PENDIENTE');}
   if(estado==='PENDIENTE'){
     entrada.disabled=true;entrada.value='';boton.disabled=true;boton.textContent='Comprobante enviado';
     texto.textContent='Comprobante enviado. Esperando aprobación del administrador. No necesitás enviar otro.';
@@ -3043,7 +3043,7 @@ async function vicoraMostrarMiSuscripcion(boton){
       <div class="vi-manual-dato"><small>CVU</small><strong>0000003100092872547477</strong><button type="button" class="vi-manual-copiar" onclick="vicoraCopiarPago('0000003100092872547477')">Copiar</button></div><p><strong>Titular:</strong> Cristian Lindor Calderon</p></div></div>
       <div class="vi-transfer-step"><span class="vi-transfer-number">2</span><div class="vi-transfer-step-content"><h3>Adjuntá el comprobante</h3><p>Puede ser JPG, PNG o PDF (máximo 5 MB).</p><input id="viManualArchivo" type="file" accept="image/jpeg,image/png,application/pdf" class="vi-manual-archivo"></div></div>
       <div class="vi-transfer-step"><span class="vi-transfer-number">3</span><div class="vi-transfer-step-content"><h3>Enviá el comprobante</h3><p>La renovación se realizará después de que el administrador verifique y apruebe el ingreso.</p></div></div>
-      <button type="button" id="viManualEnviar" class="vi-transfer-send" disabled onclick="vicoraEnviarComprobanteManual()">➤ Enviar comprobante</button><button type="button" id="viManualAvisarWhatsApp" class="vi-transfer-whatsapp" hidden onclick="vicoraManualAvisarWhatsApp()">💬 Avisar pago al administrador por WhatsApp</button><p id="viManualEstado" role="status" aria-live="polite">Consultando el importe de tu plan...</p>
+      <button type="button" id="viManualEnviar" class="vi-transfer-send" disabled onclick="vicoraEnviarComprobanteManual()">➤ Enviar comprobante</button><button type="button" id="viManualAvisarWhatsApp" class="vi-transfer-whatsapp" disabled onclick="vicoraManualAvisarWhatsApp()">💬 Avisar pago al administrador por WhatsApp</button><p id="viManualEstado" role="status" aria-live="polite">Consultando el importe de tu plan...</p>
     </div><aside class="vi-transfer-alert"><h3>◷ &nbsp; Comprobante pendiente de verificación</h3><p>Una vez que envíes el comprobante, el administrador lo revisará y te notificará cuando la suscripción sea renovada.</p><p>Enviar el comprobante no significa que el pago esté aprobado.</p></aside></div>
   </section>
   <div class="vi-sub-note"><strong>📅 Pagá antes y conservá tus días.</strong> Si abonás antes del vencimiento, no perdés los días de tu suscripción vigente. El nuevo período mensual comenzará cuando termine el período que ya tenés pago. Por ejemplo, si vence el 20 de octubre y pagás el 18, la renovación empieza el 20 de octubre, una vez aprobado el pago.</div>`;
@@ -3155,5 +3155,7 @@ async function vicoraEnviarComprobanteManual(){
 .vi-transfer-whatsapp{display:block;width:100%;margin-top:11px;padding:14px 12px;border:1px solid #15803d;border-radius:12px;background:#16a34a;color:#fff;font-size:15px;font-weight:800;cursor:pointer;line-height:1.4}
 .vi-transfer-whatsapp:hover{background:#15803d}
 .vi-transfer-whatsapp[hidden]{display:none!important}
+.vi-transfer-whatsapp:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.25);box-shadow:none}
+.vi-transfer-whatsapp:disabled:hover{background:#16a34a}
 </style>
 </body></html>
