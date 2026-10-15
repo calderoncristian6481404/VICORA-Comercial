@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VICORA Comercial</title><style>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VICORA Comercial</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet"><style>
 
     /* =====================================================
        ESTILO GENERAL
@@ -314,30 +314,18 @@
 
 .business-name {
   position: absolute;
-
   left: 50%;
   top: 50%;
-
   transform: translate(-50%, -50%);
-
   text-align: center;
-
-  font-size: 22px;
-
-  font-weight: 800;
-
+  font-family: 'Montserrat', Arial, Helvetica, sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 2.4px;
+  line-height: 1.15;
   color: #ffffff;
-
-  letter-spacing: .2px;
-
   white-space: nowrap;
-
-  text-shadow:
-    -1px -1px 0 #000,
-     1px -1px 0 #000,
-    -1px  1px 0 #000,
-     1px  1px 0 #000,
-     0 2px 5px rgba(0,0,0,.25);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .28);
 }
 
 /* =====================================================
@@ -1753,6 +1741,7 @@ button.vi-accion-actualizar:hover:not(:disabled) { background: #bfdbfe !importan
     max-width: none !important;
     transform: translateY(-50%) !important;
     font-size: clamp(12px, 3.5vw, 17px) !important;
+    letter-spacing: 1px !important;
     line-height: 1.15 !important;
     white-space: normal !important;
     overflow-wrap: anywhere !important;
@@ -2733,7 +2722,7 @@ iniciar();
 @media(max-width:760px){
   body.vicora-menu-cerrado .sidebar{transform:translateX(-110%);pointer-events:none}
   body.vicora-menu-cerrado .main{margin-left:0!important;padding-left:12px!important;padding-right:12px!important}
-  body.vicora-menu-cerrado .business-name{font-size:clamp(12px,3.2vw,16px);max-width:44vw;overflow:hidden;text-overflow:ellipsis}
+  body.vicora-menu-cerrado .business-name{letter-spacing:.7px;font-size:clamp(12px,3.2vw,16px);max-width:44vw;overflow:hidden;text-overflow:ellipsis}
   .sidebar{transition:transform .2s ease}
   .main{transition:margin-left .2s ease}
   #vicoraMenuMovil{display:flex!important;position:fixed;left:9px;bottom:18px;z-index:180;background:#1d4ed8;color:white;border:1px solid #93c5fd;border-radius:13px;box-shadow:0 8px 22px #0f172a55;padding:11px 14px;font-size:13px;font-weight:800;align-items:center;gap:7px}
