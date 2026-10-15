@@ -2941,7 +2941,7 @@ async function vicoraMostrarMiSuscripcion(boton){
   if(typeof seleccionar==='function')seleccionar(boton);
   const cont=document.getElementById('contenidoPrincipal');
   if(!cont)return;
-  cont.innerHTML=`<div class="vi-sub-head"><h1 class="page-title">Mi suscripción</h1><p class="page-subtitle">Consultá tu plan y las modalidades de pago disponibles para VICORA Comercial.</p></div><div id="viSubEstado" class="vi-sub-card" role="status">Consultando tu suscripción...</div><div class="vi-sub-grid" style="margin-top:16px"><section class="vi-sub-card"><span class="vi-sub-pill">Pago manual</span><h2>Transferencia bancaria</h2><p>Podés coordinar una transferencia con el administrador de VICORA. El pago se registra cuando se verifica su acreditación.</p><button type="button" class="vi-sub-button" disabled title="Los datos de transferencia todavía no están configurados">Solicitar datos de transferencia (próximamente)</button></section><section class="vi-sub-card"><span class="vi-sub-pill">En preparación</span><h2>Suscripción automática con Mercado Pago</h2><p>Permitirá autorizar cobros mensuales recurrentes. Todavía estamos probando la vinculación segura de los negocios y la confirmación de los pagos.</p><button type="button" class="vi-sub-button" disabled title="No se realizan cobros ni autorizaciones todavía">Activar pago automático (próximamente)</button></section></div><div class="vi-sub-note"><strong>📅 Pagá antes y conservá tus días.</strong> Si abonás antes del vencimiento, no perdés los días de tu suscripción vigente. El nuevo período mensual comenzará cuando termine el período que ya tenés pago. Por ejemplo, si vence el 20 de octubre y pagás el 18, la renovación empieza el 20 de octubre. <strong>Importante:</strong> este criterio se aplica a los pagos manuales; para Mercado Pago se confirmará antes de habilitar los cobros automáticos.</div><div class="vi-sub-note">Esta pantalla es informativa. No cambia tu modalidad de pago, no crea suscripciones y no genera cobros.</div>`;
+  cont.innerHTML=`<div class="vi-sub-head"><h1 class="page-title">Mi suscripción</h1><p class="page-subtitle">Consultá tu plan y las modalidades de pago disponibles para VICORA Comercial.</p></div><div id="viSubEstado" class="vi-sub-card" role="status">Consultando tu suscripción...</div><div class="vi-sub-grid" style="margin-top:16px"><section class="vi-sub-card"><span class="vi-sub-pill">Pago manual</span><h2>Transferencia bancaria</h2><p>Podés coordinar una transferencia con el administrador de VICORA. El pago se registra cuando se verifica su acreditación.</p><button type="button" class="vi-sub-button" disabled title="Los datos de transferencia todavía no están configurados">Solicitar datos de transferencia (próximamente)</button></section><section class="vi-sub-card"><span class="vi-sub-pill">Pago mensual voluntario</span><h2>Mercado Pago · Checkout Pro</h2><p>Pagás solamente cuando vos lo decidís. No hay débitos automáticos ni autorización de cobros recurrentes.</p><p id="viSubMPPrecio">Consultando importe del plan...</p><button type="button" id="viSubMPBoton" class="vi-sub-button" disabled title="Los cobros todavía no están habilitados">Pagar con Mercado Pago (próximamente)</button><p id="viSubMPEstado" style="margin-top:10px">Por seguridad, el Checkout permanecerá deshabilitado hasta completar la validación de producción.</p></section></div><div class="vi-sub-note"><strong>📅 Pagá antes y conservá tus días.</strong> Si abonás antes del vencimiento, no perdés los días de tu suscripción vigente. El nuevo período mensual comenzará cuando termine el período que ya tenés pago. Por ejemplo, si vence el 20 de octubre y pagás el 18, la renovación empieza el 20 de octubre. <strong>Importante:</strong> este criterio también se aplicará a Mercado Pago una vez habilitada y verificada la confirmación de pagos.</div><div class="vi-sub-note">Esta pantalla es informativa. El botón de Mercado Pago está deshabilitado; no se crean preferencias ni se generan cobros.</div>`;
   const caja=document.getElementById('viSubEstado');
   try{
     if(!db||!perfil||!negocio)throw new Error('Iniciá sesión nuevamente para consultar los datos.');
@@ -2964,6 +2964,20 @@ async function vicoraMostrarMiSuscripcion(boton){
       celda.append(small,strong);facts.append(celda);
     }
     caja.append(titulo,facts);
+    // Vista previa segura: consulta el importe al servidor, sin crear operación ni Checkout.
+    const mpPrecio=document.getElementById('viSubMPPrecio');
+    const mpEstado=document.getElementById('viSubMPEstado');
+    try {
+      const {data:mp,error:mpError}=await db.functions.invoke('vicora-mp-crear-suscripcion',{body:{}});
+      if(mpError||!mp?.ok)throw new Error('No se pudo consultar el importe.');
+      if(mpPrecio&&mpPrecio.isConnected){
+        mpPrecio.textContent='Mensualidad vigente: '+new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(mp.importe||0));
+      }
+      if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='Pago único sin débito automático. Checkout aún no habilitado.';
+    } catch(e) {
+      if(mpPrecio&&mpPrecio.isConnected)mpPrecio.textContent='Importe no disponible por el momento.';
+      if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='No se realizó ninguna operación de pago.';
+    }
   }catch(e){if(caja&&caja.isConnected)caja.textContent='No se pudo consultar la suscripción: '+String(e?.message||e);}
 }
 </script>
