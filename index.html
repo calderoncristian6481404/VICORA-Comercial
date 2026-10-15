@@ -2998,7 +2998,36 @@ function vicoraMPIniciarSeguimiento(estadoElemento) {
 }
 </script>
 <script id="vicoraMiSuscripcionScript20261014">
+// Estado persistente del comprobante, consultado de forma segura al servidor.
+let vicoraManualSolicitudEstado = 'CONSULTANDO';
+async function vicoraManualConsultarEstado(idSuscripcion){
+  const {data,error}=await db.rpc('vicora_comercial_estado_comprobante',{p_id_suscripcion:idSuscripcion});
+  if(error)throw error;
+  return data && typeof data==='object' ? data : {estado:'SIN_SOLICITUD'};
+}
+function vicoraManualAplicarEstado(info){
+  const entrada=document.getElementById('viManualArchivo');
+  const boton=document.getElementById('viManualEnviar');
+  const texto=document.getElementById('viManualEstado');
+  if(!entrada||!boton||!texto)return;
+  const estado=String(info?.estado||'SIN_SOLICITUD').toUpperCase();
+  vicoraManualSolicitudEstado=estado;
+  if(estado==='PENDIENTE'){
+    entrada.disabled=true;entrada.value='';boton.disabled=true;boton.textContent='Comprobante enviado';
+    texto.textContent='Comprobante enviado. Esperando aprobación del administrador. No necesitás enviar otro.';
+  }else if(estado==='APROBADO'){
+    entrada.disabled=false;entrada.value='';boton.disabled=false;boton.textContent='Enviar nueva renovación';
+    texto.textContent='Tu último comprobante fue aprobado. Revisá arriba el nuevo vencimiento. Si querés pagar otro período, podés enviar un nuevo comprobante.';
+  }else if(estado==='RECHAZADO'){
+    entrada.disabled=false;boton.disabled=false;boton.textContent='Enviar nuevo comprobante';
+    texto.textContent='El comprobante anterior fue rechazado. Podés adjuntar uno nuevo.'+(info.observaciones?' Motivo: '+String(info.observaciones):'');
+  }else{
+    entrada.disabled=false;boton.disabled=false;boton.textContent='Enviar comprobante';
+    texto.textContent='Adjuntá el comprobante después de realizar la transferencia.';
+  }
+}
 async function vicoraMostrarMiSuscripcion(boton){
+  vicoraManualSolicitudEstado='CONSULTANDO';
   if(typeof seleccionar==='function')seleccionar(boton);
   const cont=document.getElementById('contenidoPrincipal');
   if(!cont)return;
@@ -3044,12 +3073,18 @@ async function vicoraMostrarMiSuscripcion(boton){
     const botonEnviar=document.getElementById('viManualEnviar');
     const estadoManual=document.getElementById('viManualEstado');
     if(importe)importe.textContent=new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(precio.importe));
-    if(botonEnviar)botonEnviar.disabled=false;
-    if(estadoManual)estadoManual.textContent='Adjuntá el comprobante después de realizar la transferencia.';
+    if(estadoManual)estadoManual.textContent='Verificando si ya existe un comprobante...';
+    const solicitud=await vicoraManualConsultarEstado(sub.id_suscripcion);
+    if(!caja.isConnected)return;
+    vicoraManualAplicarEstado(solicitud);
   }catch(e){
     if(caja&&caja.isConnected&&!caja.querySelector('.vi-sub-facts'))caja.textContent='No se pudo consultar la suscripción: '+String(e?.message||e);
     const estadoManual=document.getElementById('viManualEstado');
-    if(estadoManual)estadoManual.textContent='No se pudo consultar el importe vigente. No realices una transferencia hasta confirmarlo.';
+    const botonEnviar=document.getElementById('viManualEnviar');
+    const entrada=document.getElementById('viManualArchivo');
+    if(botonEnviar)botonEnviar.disabled=true;
+    if(entrada)entrada.disabled=true;
+    if(estadoManual)estadoManual.textContent='No se pudo verificar el importe o el estado del comprobante. No envíes otro hasta volver a consultar. Detalle: '+String(e?.message||e);
   }
 }
 </script>
@@ -3072,7 +3107,7 @@ async function vicoraEnviarComprobanteManual(){
  const boton=document.getElementById('viManualEnviar');
  const entrada=document.getElementById('viManualArchivo');
  const estado=document.getElementById('viManualEstado');
- if(!boton||!entrada||!estado||boton.disabled)return;
+ if(!boton||!entrada||!estado||boton.disabled||vicoraManualSolicitudEstado==='PENDIENTE')return;
  const archivo=entrada.files?.[0];
  if(!archivo){estado.textContent='Seleccioná primero el comprobante.';return;}
  if(archivo.size===0||archivo.size>5*1024*1024){estado.textContent='El archivo debe tener entre 1 byte y 5 MB.';return;}
@@ -3090,11 +3125,15 @@ async function vicoraEnviarComprobanteManual(){
    });
    const {data,error}=await db.functions.invoke('vicora-enviar-comprobante',{body:{archivo_base64:base64}});
    if(error||!data?.ok)throw new Error(data?.error||error?.message||'No se pudo enviar el comprobante');
-   estado.textContent='Comprobante recibido. Tu solicitud quedó PENDIENTE de verificación. La suscripción todavía no fue renovada.';
-   boton.textContent='Solicitud enviada';entrada.disabled=true;
+   vicoraManualAplicarEstado({estado:'PENDIENTE'});
  }catch(e){
    estado.textContent='No se pudo enviar: '+String(e?.message||e);
-   boton.disabled=false;boton.textContent='Enviar comprobante';
+   // Ante una respuesta incierta, consultar antes de permitir reintentos.
+   try{
+     const {data:subs,error:subError}=await db.from('suscripciones').select('id_suscripcion').eq('id_negocio',perfil.id_negocio).eq('id_sistema','SIS-000001').single();
+     if(subError)throw subError;
+     vicoraManualAplicarEstado(await vicoraManualConsultarEstado(subs.id_suscripcion));
+   }catch(_){boton.disabled=true;entrada.disabled=true;estado.textContent+=' Volvé a abrir Mi suscripción para verificar el estado antes de reintentar.';}
  }
 }
 </script>
