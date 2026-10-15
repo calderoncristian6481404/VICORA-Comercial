@@ -2941,7 +2941,7 @@ async function vicoraMostrarMiSuscripcion(boton){
   if(typeof seleccionar==='function')seleccionar(boton);
   const cont=document.getElementById('contenidoPrincipal');
   if(!cont)return;
-  cont.innerHTML=`<div class="vi-sub-head"><h1 class="page-title">Mi suscripción</h1><p class="page-subtitle">Consultá tu plan y las modalidades de pago disponibles para VICORA Comercial.</p></div><div id="viSubEstado" class="vi-sub-card" role="status">Consultando tu suscripción...</div><div class="vi-sub-grid" style="margin-top:16px"><section class="vi-sub-card"><span class="vi-sub-pill">Pago manual</span><h2>Transferencia bancaria</h2><p>Podés coordinar una transferencia con el administrador de VICORA. El pago se registra cuando se verifica su acreditación.</p><button type="button" class="vi-sub-button" disabled title="Los datos de transferencia todavía no están configurados">Solicitar datos de transferencia (próximamente)</button></section><section class="vi-sub-card"><span class="vi-sub-pill">Pago mensual voluntario</span><h2>Mercado Pago · Checkout Pro</h2><p>Pagás solamente cuando vos lo decidís. No hay débitos automáticos ni autorización de cobros recurrentes.</p><p id="viSubMPPrecio">Consultando importe del plan...</p><button type="button" id="viSubMPBoton" class="vi-sub-button" disabled title="Los cobros todavía no están habilitados">Pagar con Mercado Pago (próximamente)</button><p id="viSubMPEstado" style="margin-top:10px">Por seguridad, el Checkout permanecerá deshabilitado hasta completar la validación de producción.</p></section></div><div class="vi-sub-note"><strong>📅 Pagá antes y conservá tus días.</strong> Si abonás antes del vencimiento, no perdés los días de tu suscripción vigente. El nuevo período mensual comenzará cuando termine el período que ya tenés pago. Por ejemplo, si vence el 20 de octubre y pagás el 18, la renovación empieza el 20 de octubre. <strong>Importante:</strong> este criterio también se aplicará a Mercado Pago una vez habilitada y verificada la confirmación de pagos.</div><div class="vi-sub-note">Esta pantalla es informativa. El botón de Mercado Pago está deshabilitado; no se crean preferencias ni se generan cobros.</div>`;
+  cont.innerHTML=`<div class="vi-sub-head"><h1 class="page-title">Mi suscripción</h1><p class="page-subtitle">Consultá tu plan y las modalidades de pago disponibles para VICORA Comercial.</p></div><div id="viSubEstado" class="vi-sub-card" role="status">Consultando tu suscripción...</div><div class="vi-sub-grid" style="margin-top:16px"><section class="vi-sub-card"><span class="vi-sub-pill">Pago manual</span><h2>Transferencia bancaria</h2><p>Podés coordinar una transferencia con el administrador de VICORA. El pago se registra cuando se verifica su acreditación.</p><button type="button" class="vi-sub-button" disabled title="Los datos de transferencia todavía no están configurados">Solicitar datos de transferencia (próximamente)</button></section><section class="vi-sub-card"><span class="vi-sub-pill">Pago mensual voluntario</span><h2>Mercado Pago · Checkout Pro</h2><p>Pagás solamente cuando vos lo decidís. No hay débitos automáticos ni autorización de cobros recurrentes.</p><p id="viSubMPPrecio">Consultando importe del plan...</p><button type="button" id="viSubMPBoton" class="vi-sub-button" disabled title="Checkout pendiente de habilitación del servidor">Pagar con Mercado Pago (próximamente)</button><p id="viSubMPEstado" style="margin-top:10px">Por seguridad, el Checkout permanecerá deshabilitado hasta completar la validación de producción.</p></section></div><div class="vi-sub-note"><strong>📅 Pagá antes y conservá tus días.</strong> Si abonás antes del vencimiento, no perdés los días de tu suscripción vigente. El nuevo período mensual comenzará cuando termine el período que ya tenés pago. Por ejemplo, si vence el 20 de octubre y pagás el 18, la renovación empieza el 20 de octubre. <strong>Importante:</strong> este criterio también se aplicará a Mercado Pago una vez habilitada y verificada la confirmación de pagos.</div><div class="vi-sub-note">El pago se habilitará únicamente después de completar las verificaciones de producción. Nunca se renovará una suscripción solo por regresar de Mercado Pago.</div>`;
   const caja=document.getElementById('viSubEstado');
   try{
     if(!db||!perfil||!negocio)throw new Error('Iniciá sesión nuevamente para consultar los datos.');
@@ -2973,7 +2973,36 @@ async function vicoraMostrarMiSuscripcion(boton){
       if(mpPrecio&&mpPrecio.isConnected){
         mpPrecio.textContent='Mensualidad vigente: '+new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(mp.importe||0));
       }
-      if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='Pago único sin débito automático. Checkout aún no habilitado.';
+      const mpBoton=document.getElementById('viSubMPBoton');
+      if(mpBoton&&mpBoton.isConnected){
+        const disponible=mp.checkout_habilitado===true && mp.pago==='UNICO' && mp.moneda==='ARS' && Number(mp.importe)>0;
+        mpBoton.disabled=!disponible;
+        mpBoton.textContent=disponible?'Pagar con Mercado Pago':'Pagar con Mercado Pago (próximamente)';
+        mpBoton.title=disponible?'Abrir Checkout Pro de Mercado Pago':'Checkout pendiente de habilitación del servidor';
+        if(disponible){
+          mpBoton.onclick=async()=>{
+            if(mpBoton.disabled)return;
+            const ok=window.confirm('Vas a abrir Mercado Pago para realizar un pago único de '+new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(mp.importe))+'. No se realizará ningún débito automático. ¿Continuar?');
+            if(!ok)return;
+            mpBoton.disabled=true;
+            mpBoton.textContent='Preparando pago...';
+            if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='Preparando una operación segura en Mercado Pago...';
+            try{
+              const {data:checkout,error:checkoutError}=await db.functions.invoke('vicora-mp-crear-suscripcion',{body:{accion:'CREAR_CHECKOUT'}});
+              if(checkoutError||!checkout?.ok||checkout.etapa!=='checkout_preparado'||typeof checkout.enlace_checkout!=='string')throw new Error(checkout?.error||checkoutError?.message||'No se pudo preparar el pago.');
+              const destino=new URL(checkout.enlace_checkout);
+              if(destino.protocol!=='https:'||!['mercadopago.com','mercadopago.com.ar'].some(h=>destino.hostname===h||destino.hostname.endsWith('.'+h)))throw new Error('Enlace de pago no válido.');
+              if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='Redirigiendo a Mercado Pago. La suscripción solo se renovará después de verificar el pago en el servidor.';
+              window.location.assign(destino.href);
+            }catch(err){
+              mpBoton.disabled=false;
+              mpBoton.textContent='Pagar con Mercado Pago';
+              if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='No se inició el pago: '+String(err?.message||err);
+            }
+          };
+        }
+      }
+      if(mpEstado&&mpEstado.isConnected)mpEstado.textContent=mp.checkout_habilitado===true?'Pago único sin débito automático. La acreditación se verifica en el servidor.':'Pago único sin débito automático. Checkout aún no habilitado.';
     } catch(e) {
       if(mpPrecio&&mpPrecio.isConnected)mpPrecio.textContent='Importe no disponible por el momento.';
       if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='No se realizó ninguna operación de pago.';
