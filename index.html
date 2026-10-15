@@ -3002,93 +3002,55 @@ async function vicoraMostrarMiSuscripcion(boton){
   if(typeof seleccionar==='function')seleccionar(boton);
   const cont=document.getElementById('contenidoPrincipal');
   if(!cont)return;
-  cont.innerHTML=`<div class="vi-sub-head"><h1 class="page-title">Mi suscripción</h1><p class="page-subtitle">Consultá tu plan y las modalidades de pago disponibles para VICORA Comercial.</p></div><div id="viSubEstado" class="vi-sub-card" role="status">Consultando tu suscripción...</div><div class="vi-sub-grid" style="margin-top:16px"><section class="vi-sub-card"><span class="vi-sub-pill">Renovación por transferencia</span><h2>Transferí a Mercado Pago</h2><p>Importe mensual: <strong id="viManualPrecio">Consultando importe...</strong></p><div class="vi-manual-dato"><small>Alias</small><strong>vicora.sistema.mp</strong><button type="button" class="vi-manual-copiar" onclick="vicoraCopiarPago('vicora.sistema.mp')">Copiar</button></div><div class="vi-manual-dato"><small>CVU</small><strong>0000003100092872547477</strong><button type="button" class="vi-manual-copiar" onclick="vicoraCopiarPago('0000003100092872547477')">Copiar</button></div><p><strong>Titular:</strong> Cristian Lindor Calderon</p><p>Una vez transferido, adjuntá el comprobante. La renovación se hará solamente cuando el administrador verifique y apruebe el ingreso.</p><label class="vi-manual-label" for="viManualArchivo">Comprobante (JPG, PNG o PDF, máximo 5 MB)</label><input id="viManualArchivo" type="file" accept="image/jpeg,image/png,application/pdf" class="vi-manual-archivo"><button type="button" id="viManualEnviar" class="vi-sub-button" disabled onclick="vicoraEnviarComprobanteManual()">Enviar comprobante</button><p id="viManualEstado" role="status" aria-live="polite">Consultando el importe de tu plan...</p></section><section class="vi-sub-card"><span class="vi-sub-pill">Pago mensual voluntario</span><h2>Mercado Pago · Checkout Pro</h2><p>Pagás solamente cuando vos lo decidís. No hay débitos automáticos ni autorización de cobros recurrentes.</p><p id="viSubMPPrecio">Consultando importe del plan...</p><button type="button" id="viSubMPBoton" class="vi-sub-button" disabled title="Checkout pendiente de habilitación del servidor">Pagar con Mercado Pago (próximamente)</button><p id="viSubMPEstado" style="margin-top:10px">Por seguridad, el Checkout permanecerá deshabilitado hasta completar la validación de producción.</p></section></div><div class="vi-sub-note"><strong>📅 Pagá antes y conservá tus días.</strong> Si abonás antes del vencimiento, no perdés los días de tu suscripción vigente. El nuevo período mensual comenzará cuando termine el período que ya tenés pago. Por ejemplo, si vence el 20 de octubre y pagás el 18, la renovación empieza el 20 de octubre. <strong>Importante:</strong> este criterio también se aplicará a Mercado Pago una vez habilitada y verificada la confirmación de pagos.</div><div class="vi-sub-note">El pago se habilitará únicamente después de completar las verificaciones de producción. Nunca se renovará una suscripción solo por regresar de Mercado Pago.</div>`;
+  cont.innerHTML=`<div class="vi-sub-head"><h1 class="page-title">Mi suscripción</h1><p class="page-subtitle">Consultá tu plan y renová mediante transferencia.</p></div>
+  <div id="viSubEstado" class="vi-sub-card" role="status">Consultando tu suscripción...</div>
+  <section class="vi-sub-card vi-transfer-card" style="margin-top:18px">
+    <div class="vi-transfer-heading"><span class="vi-transfer-heading-icon">▣</span><div><h2>Renovación mensual por transferencia</h2><p>Para continuar utilizando el sistema, realizá la transferencia y enviá el comprobante.</p></div></div>
+    <div class="vi-transfer-grid"><div class="vi-transfer-steps">
+      <div class="vi-transfer-step"><span class="vi-transfer-number">1</span><div class="vi-transfer-step-content"><h3>Transferí a Mercado Pago</h3><p>Importe mensual: <strong id="viManualPrecio" class="vi-transfer-price">Consultando...</strong></p>
+      <div class="vi-manual-dato"><small>Alias</small><strong>vicora.sistema.mp</strong><button type="button" class="vi-manual-copiar" onclick="vicoraCopiarPago('vicora.sistema.mp')">Copiar</button></div>
+      <div class="vi-manual-dato"><small>CVU</small><strong>0000003100092872547477</strong><button type="button" class="vi-manual-copiar" onclick="vicoraCopiarPago('0000003100092872547477')">Copiar</button></div><p><strong>Titular:</strong> Cristian Lindor Calderon</p></div></div>
+      <div class="vi-transfer-step"><span class="vi-transfer-number">2</span><div class="vi-transfer-step-content"><h3>Adjuntá el comprobante</h3><p>Puede ser JPG, PNG o PDF (máximo 5 MB).</p><input id="viManualArchivo" type="file" accept="image/jpeg,image/png,application/pdf" class="vi-manual-archivo"></div></div>
+      <div class="vi-transfer-step"><span class="vi-transfer-number">3</span><div class="vi-transfer-step-content"><h3>Enviá el comprobante</h3><p>La renovación se realizará después de que el administrador verifique y apruebe el ingreso.</p></div></div>
+      <button type="button" id="viManualEnviar" class="vi-transfer-send" disabled onclick="vicoraEnviarComprobanteManual()">➤ Enviar comprobante</button><p id="viManualEstado" role="status" aria-live="polite">Consultando el importe de tu plan...</p>
+    </div><aside class="vi-transfer-alert"><h3>◷ &nbsp; Comprobante pendiente de verificación</h3><p>Una vez que envíes el comprobante, el administrador lo revisará y te notificará cuando la suscripción sea renovada.</p><p>Enviar el comprobante no significa que el pago esté aprobado.</p></aside></div>
+  </section>
+  <div class="vi-sub-note"><strong>📅 Pagá antes y conservá tus días.</strong> Si abonás antes del vencimiento, no perdés los días de tu suscripción vigente. El nuevo período mensual comenzará cuando termine el período que ya tenés pago. Por ejemplo, si vence el 20 de octubre y pagás el 18, la renovación empieza el 20 de octubre, una vez aprobado el pago.</div>`;
   const caja=document.getElementById('viSubEstado');
   try{
     if(!db||!perfil||!negocio)throw new Error('Iniciá sesión nuevamente para consultar los datos.');
-    const {data,error}=await db.from('suscripciones').select('id_suscripcion,id_negocio,id_sistema,estado,modalidad_pago,fecha_fin_prueba,proximo_vencimiento,id_suscripcion_mp,id_plan').eq('id_negocio',perfil.id_negocio).eq('id_sistema','SIS-000001').limit(2);
+    const {data,error}=await db.from('suscripciones').select('id_suscripcion,id_negocio,id_sistema,estado,fecha_fin_prueba,proximo_vencimiento,id_plan').eq('id_negocio',perfil.id_negocio).eq('id_sistema','SIS-000001').limit(2);
     if(error)throw error;
     if(!data||data.length!==1)throw new Error('No se encontró una única suscripción para tu negocio.');
     const sub=data[0];
     const formato=(v)=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?`${v.slice(8,10)}/${v.slice(5,7)}/${v.slice(0,4)}`:'Sin definir';
-    const modalidad=sub.id_suscripcion_mp?'Mercado Pago':String(sub.modalidad_pago||'Sin definir').toUpperCase()==='MANUAL'?'Manual':'Sin definir';
     const estado=String(sub.estado||'Sin definir').toUpperCase();
     const fecha=estado==='PRUEBA'?sub.fecha_fin_prueba:sub.proximo_vencimiento;
     const nombreFecha=estado==='PRUEBA'?'Fin de prueba gratuita':'Próximo vencimiento';
     caja.textContent='';
-    const titulo=document.createElement('h2');titulo.textContent='Estado de tu plan · VICORA Comercial';
+    const titulo=document.createElement('h2');titulo.textContent='Tu suscripción · VICORA Comercial';
     const facts=document.createElement('div');facts.className='vi-sub-facts';
-    for(const [label,value] of [['Negocio',negocio.nombre],['Estado',estado],['Modalidad actual',modalidad],[nombreFecha,formato(fecha)]]){
+    for(const [label,value] of [['Negocio',negocio.nombre],['Estado',estado],['Plan actual','VICORA Comercial · Plan mensual'],[nombreFecha,formato(fecha)]]){
       const celda=document.createElement('div');celda.className='vi-sub-fact';
       const small=document.createElement('small');small.textContent=label;
       const strong=document.createElement('strong');strong.textContent=String(value||'Sin definir');
       celda.append(small,strong);facts.append(celda);
     }
     caja.append(titulo,facts);
-    // Vista previa segura: consulta el importe al servidor, sin crear operación ni Checkout.
-    const mpPrecio=document.getElementById('viSubMPPrecio');
-    const mpEstado=document.getElementById('viSubMPEstado');
-    try {
-      const {data:mp,error:mpError}=await db.functions.invoke('vicora-mp-crear-suscripcion',{body:{}});
-      if(mpError||!mp?.ok)throw new Error('No se pudo consultar el importe.');
-      const precioManual=document.getElementById('viManualPrecio');
-      const enviarManual=document.getElementById('viManualEnviar');
-      const estadoManual=document.getElementById('viManualEstado');
-      if(mp.moneda==='ARS'&&Number(mp.importe)>0&&mp.pago==='UNICO'){
-        if(precioManual)precioManual.textContent=new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(mp.importe));
-        if(enviarManual)enviarManual.disabled=false;
-        if(estadoManual)estadoManual.textContent='Adjuntá tu comprobante después de realizar la transferencia.';
-      } else throw new Error('El importe del plan no está disponible.');
-      if(mpPrecio&&mpPrecio.isConnected){
-        mpPrecio.textContent='Mensualidad vigente: '+new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(mp.importe||0));
-      }
-      const mpBoton=document.getElementById('viSubMPBoton');
-      if(mpBoton&&mpBoton.isConnected){
-        const disponible=mp.checkout_habilitado===true && mp.pago==='UNICO' && mp.moneda==='ARS' && Number(mp.importe)>0;
-        mpBoton.disabled=!disponible;
-        mpBoton.textContent=disponible?'Pagar con Mercado Pago':'Pagar con Mercado Pago (próximamente)';
-        mpBoton.title=disponible?'Abrir Checkout Pro de Mercado Pago':'Checkout pendiente de habilitación del servidor';
-        if(disponible){
-          mpBoton.onclick=async()=>{
-            if(mpBoton.disabled)return;
-            const ok=window.confirm('Vas a abrir Mercado Pago para realizar un pago único de '+new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(mp.importe))+'. No se realizará ningún débito automático. ¿Continuar?');
-            if(!ok)return;
-            mpBoton.disabled=true;
-            mpBoton.textContent='Preparando pago...';
-            if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='Preparando una operación segura en Mercado Pago...';
-            try{
-              const {data:checkout,error:checkoutError}=await db.functions.invoke('vicora-mp-crear-suscripcion',{body:{accion:'CREAR_CHECKOUT'}});
-              if(checkoutError||!checkout?.ok||checkout.etapa!=='checkout_preparado'||typeof checkout.enlace_checkout!=='string')throw new Error(checkout?.error||checkoutError?.message||'No se pudo preparar el pago.');
-              const destino=new URL(checkout.enlace_checkout);
-              if(destino.protocol!=='https:'||!['mercadopago.com','mercadopago.com.ar'].some(h=>destino.hostname===h||destino.hostname.endsWith('.'+h)))throw new Error('Enlace de pago no válido.');
-              vicoraMPGuardarPendiente({
-                id_operacion: checkout.id_operacion,
-                id_negocio: perfil.id_negocio,
-                id_suscripcion: sub.id_suscripcion,
-                vencimiento_anterior: sub.proximo_vencimiento || '',
-                creado: Date.now()
-              });
-              if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='Redirigiendo a Mercado Pago. La suscripción solo se renovará después de verificar el pago en el servidor.';
-              window.location.assign(destino.href);
-            }catch(err){
-              mpBoton.disabled=false;
-              mpBoton.textContent='Pagar con Mercado Pago';
-              if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='No se inició el pago: '+String(err?.message||err);
-            }
-          };
-        }
-      }
-      if(mpEstado&&mpEstado.isConnected) {
-        mpEstado.textContent=mp.checkout_habilitado===true?'Pago único sin débito automático. La acreditación se verifica en el servidor.':'Pago único sin débito automático. Checkout aún no habilitado.';
-        if (vicoraMPLeerPendiente()?.id_negocio === perfil.id_negocio) vicoraMPIniciarSeguimiento(mpEstado);
-      }
-    } catch(e) {
-      if(mpPrecio&&mpPrecio.isConnected)mpPrecio.textContent='Importe no disponible por el momento.';
-      const estadoManual=document.getElementById('viManualEstado');
-      if(estadoManual)estadoManual.textContent='No se pudo consultar el importe. No envíes una transferencia hasta confirmarlo.';
-      if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='No se realizó ninguna operación de pago.';
-    }
-  }catch(e){if(caja&&caja.isConnected)caja.textContent='No se pudo consultar la suscripción: '+String(e?.message||e);}
+    // Consulta de solo lectura al servidor existente: no inicia Checkout ni crea pagos.
+    const {data:precio,error:precioError}=await db.functions.invoke('vicora-mp-crear-suscripcion',{body:{}});
+    if(precioError||!precio?.ok||precio.moneda!=='ARS'||precio.pago!=='UNICO'||!(Number(precio.importe)>0))throw new Error('No se pudo consultar el importe vigente del plan.');
+    const importe=document.getElementById('viManualPrecio');
+    const botonEnviar=document.getElementById('viManualEnviar');
+    const estadoManual=document.getElementById('viManualEstado');
+    if(importe)importe.textContent=new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(precio.importe));
+    if(botonEnviar)botonEnviar.disabled=false;
+    if(estadoManual)estadoManual.textContent='Adjuntá el comprobante después de realizar la transferencia.';
+  }catch(e){
+    if(caja&&caja.isConnected&&!caja.querySelector('.vi-sub-facts'))caja.textContent='No se pudo consultar la suscripción: '+String(e?.message||e);
+    const estadoManual=document.getElementById('viManualEstado');
+    if(estadoManual)estadoManual.textContent='No se pudo consultar el importe vigente. No realices una transferencia hasta confirmarlo.';
+  }
 }
 </script>
 
@@ -3137,4 +3099,8 @@ async function vicoraEnviarComprobanteManual(){
 }
 </script>
 
+
+<style id="vicoraTransferenciaDiseno20261015">
+.vi-transfer-card{padding:26px!important}.vi-transfer-heading{display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:14px;background:linear-gradient(110deg,#eaf3ff,#f1f7ff);margin-bottom:22px}.vi-transfer-heading-icon{font-size:35px;color:#2563eb}.vi-transfer-heading h2{font-size:21px;color:#163b86;margin:0 0 5px}.vi-transfer-heading p{font-size:14px;color:#64748b;line-height:1.5}.vi-transfer-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.9fr);gap:30px}.vi-transfer-steps{min-width:0}.vi-transfer-step{display:flex;gap:16px;margin-bottom:20px}.vi-transfer-number{width:43px;height:43px;flex:0 0 43px;display:grid;place-items:center;border-radius:50%;background:#1769e8;color:#fff;font-size:20px;font-weight:800}.vi-transfer-step-content{flex:1;min-width:0}.vi-transfer-step-content h3{font-size:18px;color:#172554;margin:3px 0 7px}.vi-transfer-step-content p{font-size:14px;color:#64748b;line-height:1.6;margin-bottom:10px}.vi-transfer-price{color:#0863df;font-size:27px;font-weight:800}.vi-transfer-alert{align-self:start;border-radius:16px;padding:26px;background:linear-gradient(130deg,#fff8e6,#fffdf4);border:1px solid #fef0cc}.vi-transfer-alert h3{font-size:17px;color:#a34905;margin-bottom:18px}.vi-transfer-alert p{font-size:14px;color:#52647c;line-height:1.75;margin-bottom:15px}.vi-transfer-send{width:100%;border:0;border-radius:12px;padding:18px 16px;font-size:19px;font-weight:800;background:linear-gradient(135deg,#1769ff,#1d4ed8);color:#fff;box-shadow:0 8px 20px #2563eb38;cursor:pointer}.vi-transfer-send:hover:not(:disabled){background:#174fd3;transform:translateY(-1px)}.vi-transfer-send:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}.vi-transfer-card .vi-manual-dato{margin-bottom:9px}.vi-transfer-card .vi-manual-archivo{margin-bottom:0}.vi-transfer-card #viManualEstado{font-size:13px;color:#475569;line-height:1.5}@media(max-width:1000px){.vi-transfer-grid{grid-template-columns:1fr}.vi-transfer-alert{order:2}}@media(max-width:600px){.vi-transfer-card{padding:14px!important}.vi-transfer-heading{padding:13px}.vi-transfer-heading h2{font-size:17px}.vi-transfer-step{gap:9px}.vi-transfer-number{width:35px;height:35px;flex-basis:35px;font-size:16px}.vi-transfer-price{font-size:23px}.vi-transfer-send{font-size:17px}}
+</style>
 </body></html>
