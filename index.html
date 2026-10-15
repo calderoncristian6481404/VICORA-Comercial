@@ -2936,6 +2936,67 @@ iniciar();
 <style id="vicoraMiSuscripcionEstilos20261014">
 .vi-sub-head{margin-bottom:20px}.vi-sub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.vi-sub-card{background:#fff;border:1px solid #dbe3ec;border-radius:16px;padding:22px;box-shadow:0 5px 18px #0f172a0a}.vi-sub-card h2{font-size:17px;color:#172554;margin:0 0 12px}.vi-sub-card p{color:#475569;font-size:13px;line-height:1.6;margin:0 0 14px}.vi-sub-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.vi-sub-fact{padding:13px;background:#f8fafc;border-radius:10px;overflow-wrap:anywhere}.vi-sub-fact small{display:block;font-size:11px;color:#64748b;margin-bottom:5px}.vi-sub-fact strong{color:#172554;font-size:14px}.vi-sub-pill{display:inline-block;padding:5px 10px;border-radius:20px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:800;margin-bottom:12px}.vi-sub-button{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;padding:11px 15px;background:#2563eb;color:#fff;font-weight:700;font-size:13px}.vi-sub-button:disabled{background:#e2e8f0;color:#64748b;cursor:not-allowed}.vi-sub-note{margin-top:18px;padding:13px 16px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:13px;line-height:1.6}@media(max-width:850px){.vi-sub-grid,.vi-sub-facts{grid-template-columns:1fr}.vi-sub-card{padding:16px}}
 </style>
+<script id="vicoraMPSeguimiento20261015">
+// Seguimiento informativo: la confirmación definitiva ocurre exclusivamente en el servidor.
+const VICORA_MP_PENDIENTE_KEY = 'vicora_mp_checkout_pendiente';
+function vicoraMPGuardarPendiente(info) {
+  try { sessionStorage.setItem(VICORA_MP_PENDIENTE_KEY, JSON.stringify(info)); } catch (_) {}
+}
+function vicoraMPLeerPendiente() {
+  try {
+    const x = JSON.parse(sessionStorage.getItem(VICORA_MP_PENDIENTE_KEY) || 'null');
+    if (!x || typeof x !== 'object' || !x.id_operacion || !x.id_negocio) return null;
+    if (Date.now() - Number(x.creado || 0) > 24 * 60 * 60 * 1000) {
+      sessionStorage.removeItem(VICORA_MP_PENDIENTE_KEY);
+      return null;
+    }
+    return x;
+  } catch (_) { return null; }
+}
+function vicoraMPLimpiarPendiente() {
+  try { sessionStorage.removeItem(VICORA_MP_PENDIENTE_KEY); } catch (_) {}
+}
+async function vicoraMPComprobarRenovacion(pendiente, estadoElemento) {
+  if (!pendiente || !db || !perfil || pendiente.id_negocio !== perfil.id_negocio) return 'no_corresponde';
+  const { data, error } = await db.from('suscripciones')
+    .select('estado,proximo_vencimiento')
+    .eq('id_suscripcion', pendiente.id_suscripcion)
+    .eq('id_negocio', pendiente.id_negocio)
+    .maybeSingle();
+  if (error || !data) throw error || new Error('Suscripción no disponible');
+  const actual = String(data.proximo_vencimiento || '');
+  const anterior = String(pendiente.vencimiento_anterior || '');
+  if (data.estado === 'ACTIVA' && actual && actual > anterior) {
+    if (estadoElemento?.isConnected) {
+      const fecha = /^\d{4}-\d{2}-\d{2}$/.test(actual)
+        ? `${actual.slice(8,10)}/${actual.slice(5,7)}/${actual.slice(0,4)}` : actual;
+      estadoElemento.textContent = 'La suscripción ya figura activa y su vencimiento se actualizó al ' + fecha + '. Consultá el comprobante de Mercado Pago para confirmar el pago específico.';
+    }
+    vicoraMPLimpiarPendiente();
+    return 'actualizada';
+  }
+  if (estadoElemento?.isConnected) estadoElemento.textContent =
+    'Estamos verificando la acreditación. Volvé a consultar en unos instantes; regresar de Mercado Pago no confirma el pago.';
+  return 'pendiente';
+}
+function vicoraMPIniciarSeguimiento(estadoElemento) {
+  const pendiente = vicoraMPLeerPendiente();
+  if (!pendiente || !perfil || pendiente.id_negocio !== perfil.id_negocio) return;
+  let intentos = 0;
+  const consultar = async () => {
+    if (!estadoElemento?.isConnected || !document.getElementById('viSubMPEstado')) return;
+    try {
+      const resultado = await vicoraMPComprobarRenovacion(pendiente, estadoElemento);
+      if (resultado !== 'pendiente') return;
+    } catch (_) {
+      if (estadoElemento?.isConnected) estadoElemento.textContent =
+        'No pudimos consultar la acreditación. Reintentá entrando nuevamente a Mi suscripción.';
+    }
+    if (++intentos < 24) setTimeout(consultar, 5000);
+  };
+  consultar();
+}
+</script>
 <script id="vicoraMiSuscripcionScript20261014">
 async function vicoraMostrarMiSuscripcion(boton){
   if(typeof seleccionar==='function')seleccionar(boton);
@@ -2992,6 +3053,13 @@ async function vicoraMostrarMiSuscripcion(boton){
               if(checkoutError||!checkout?.ok||checkout.etapa!=='checkout_preparado'||typeof checkout.enlace_checkout!=='string')throw new Error(checkout?.error||checkoutError?.message||'No se pudo preparar el pago.');
               const destino=new URL(checkout.enlace_checkout);
               if(destino.protocol!=='https:'||!['mercadopago.com','mercadopago.com.ar'].some(h=>destino.hostname===h||destino.hostname.endsWith('.'+h)))throw new Error('Enlace de pago no válido.');
+              vicoraMPGuardarPendiente({
+                id_operacion: checkout.id_operacion,
+                id_negocio: perfil.id_negocio,
+                id_suscripcion: sub.id_suscripcion,
+                vencimiento_anterior: sub.proximo_vencimiento || '',
+                creado: Date.now()
+              });
               if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='Redirigiendo a Mercado Pago. La suscripción solo se renovará después de verificar el pago en el servidor.';
               window.location.assign(destino.href);
             }catch(err){
@@ -3002,7 +3070,10 @@ async function vicoraMostrarMiSuscripcion(boton){
           };
         }
       }
-      if(mpEstado&&mpEstado.isConnected)mpEstado.textContent=mp.checkout_habilitado===true?'Pago único sin débito automático. La acreditación se verifica en el servidor.':'Pago único sin débito automático. Checkout aún no habilitado.';
+      if(mpEstado&&mpEstado.isConnected) {
+        mpEstado.textContent=mp.checkout_habilitado===true?'Pago único sin débito automático. La acreditación se verifica en el servidor.':'Pago único sin débito automático. Checkout aún no habilitado.';
+        if (vicoraMPLeerPendiente()?.id_negocio === perfil.id_negocio) vicoraMPIniciarSeguimiento(mpEstado);
+      }
     } catch(e) {
       if(mpPrecio&&mpPrecio.isConnected)mpPrecio.textContent='Importe no disponible por el momento.';
       if(mpEstado&&mpEstado.isConnected)mpEstado.textContent='No se realizó ninguna operación de pago.';
