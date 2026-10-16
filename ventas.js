@@ -53,6 +53,42 @@ s.textContent+=`
  #venModal .ven-dialog{padding:12px!important}
  #venModal .ven-modal-foot > button{font-size:12px!important;padding:12px 5px!important}
 }
+
+/* VICORA · Nueva venta: jerarquia visual POS. Solo estilos, sin alterar operaciones. */
+#venOverlay{background:rgba(9,19,46,.73);backdrop-filter:blur(3px)}
+#venOverlay>.ven-dialog{background:#f3f6fc!important;border:1px solid #d6e1f5;box-shadow:0 25px 85px rgba(7,22,60,.32);padding:22px!important;width:min(1120px,100%)!important}
+#venOverlay>.ven-dialog>.ven-row:first-child{background:linear-gradient(105deg,#142b68,#2558c8);padding:15px 19px;border-radius:13px;margin-bottom:18px!important}
+#venOverlay>.ven-dialog>.ven-row:first-child h2{color:#fff!important;margin:0;font-size:23px;letter-spacing:.1px}
+#venOverlay #venCerrar{background:#fff!important;color:#a51e2b!important;border-color:#fff!important;font-weight:700}
+#venOverlay .ven-grid{grid-template-columns:minmax(0,1.35fr) minmax(310px,1fr);gap:17px}
+#venOverlay .ven-grid>section{min-width:0}
+#venOverlay .ven-card{box-shadow:0 3px 14px rgba(23,37,84,.05);padding:17px!important;border-width:1px 1px 1px 5px!important;margin-bottom:16px}
+#venOverlay .ven-grid>section:first-child>.ven-card:first-child{border-color:#d9e5ff!important;border-left-color:#2563eb!important;background:#f9fbff!important}
+#venOverlay .ven-grid>section:first-child>.ven-card:nth-child(2){border-color:#e8ddff!important;border-left-color:#7c3aed!important;background:#fcfaff!important}
+#venOverlay .ven-grid>section:nth-child(2)>.ven-card{border-color:#cfefdf!important;border-left-color:#16a34a!important;background:#f9fffb!important}
+#venOverlay .ven-card h3{display:flex;align-items:center;gap:9px;font-size:17px;margin-bottom:15px!important}
+#venOverlay .ven-grid>section:first-child>.ven-card:first-child h3{color:#1d4ed8}
+#venOverlay .ven-grid>section:first-child>.ven-card:first-child h3:before{content:'▦';display:grid;place-items:center;width:31px;height:31px;background:#dbeafe;border-radius:9px;font-size:19px}
+#venOverlay .ven-grid>section:first-child>.ven-card:nth-child(2) h3{color:#6d28d9}
+#venOverlay .ven-grid>section:first-child>.ven-card:nth-child(2) h3:before{content:'▤';display:grid;place-items:center;width:31px;height:31px;background:#ede9fe;border-radius:9px;font-size:19px}
+#venOverlay .ven-grid>section:nth-child(2)>.ven-card h3{color:#15803d}
+#venOverlay .ven-grid>section:nth-child(2)>.ven-card h3:before{content:'◈';display:grid;place-items:center;width:31px;height:31px;background:#dcfce7;border-radius:9px;font-size:19px}
+#venOverlay #venProductoBuscar{border:2px solid #93b7ff;background:#fff;padding:13px 14px;font-size:14px;box-shadow:0 0 0 3px rgba(37,99,235,.045)}
+#venOverlay #venProductoBuscar:focus{outline:2px solid #2563eb;outline-offset:1px}
+#venOverlay .ven-product{background:#fff;margin:5px 0;padding:11px 10px;border:1px solid #e2e8f0;border-radius:9px}
+#venOverlay .ven-product strong{color:#172554}
+#venOverlay #venCarrito .ven-items{min-width:490px}
+#venOverlay #venCarrito .ven-items th{background:#f0eaff;color:#5b21b6}
+#venOverlay #venCarrito .ven-empty{border:1px dashed #c4b5fd;border-radius:10px;background:#f8f5ff}
+#venOverlay #venTotales{background:#fff;border:1px solid #bbf7d0;border-radius:13px;padding:14px!important;margin-top:16px!important}
+#venOverlay #venTotales .ven-total{font-size:30px;color:#166534}
+#venOverlay #venTotales .ven-totals>div:nth-last-child(2){color:#15803d}
+#venOverlay #venTotales .ven-totals>div:last-child{padding-top:9px;border-top:1px dashed #cbd5e1}
+#venOverlay #venConfirmar{background:#15803d!important;color:#fff!important;border:1px solid #15803d!important;padding:15px!important;border-radius:11px!important;font-size:15px!important;font-weight:800!important;box-shadow:0 5px 13px rgba(21,128,61,.15)}
+#venOverlay #venConfirmar:hover{background:#166534!important}
+#venOverlay .ven-info{border:1px solid #bfdbfe}
+@media(max-width:1000px){#venOverlay .ven-grid{grid-template-columns:1fr}}
+@media(max-width:600px){#venOverlay>.ven-dialog{padding:10px!important}#venOverlay>.ven-dialog>.ven-row:first-child{padding:12px!important}#venOverlay>.ven-dialog>.ven-row:first-child h2{font-size:19px}#venOverlay .ven-card{padding:13px!important}#venOverlay #venTotales .ven-total{font-size:25px}}
 `;document.head.appendChild(s);}
 async function mostrarVentas(boton){venVisibles=15;seleccionar(boton);venCss();$('contenidoPrincipal').innerHTML=`<div class="module-header"><div><h1 class="page-title">Ventas</h1><p class="page-subtitle">Registro y seguimiento de ventas · ${esc(negocio.nombre)}</p></div><div class="ven-row"><button class="vi-client-btn alt" id="venConfigPrint">⚙ Impresión</button><button class="vi-client-btn" id="venNueva">+ Nueva venta</button></div></div><div class="ven-card"><div class="ven-row"><div class="ven-field"><label class="ven-label" for="venBuscar">Buscar por número o cliente</label><input id="venBuscar" class="ven-input" placeholder="Ej.: VEN-000001"></div><div><label class="ven-label" for="venFiltro">Estado</label><select id="venFiltro" class="ven-select"><option value="">Todos</option><option>BORRADOR</option><option>CONFIRMADA</option><option>ANULADA</option></select></div><button class="vi-client-btn alt" id="venRecargar">Actualizar</button></div><div class="ven-muted" id="venContador" style="margin:14px 0">Cargando ventas...</div><div class="ven-table" id="venTabla"></div></div><div id="venModal"></div>`;
 $('venConfigPrint').onclick=venConfigImpresion;$('venNueva').onclick=venNueva;$('venRecargar').onclick=venCargar;$('venBuscar').oninput=()=>{venVisibles=15;venPintar();};$('venFiltro').onchange=()=>{venVisibles=15;venPintar();};await venCargar();}
