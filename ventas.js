@@ -239,7 +239,7 @@ async function venEjecutarAnulacion(id){
 // VICORA · Devoluciones parciales
 // Requiere RPC seguras en Supabase:
 // obtener_contexto_devolucion(p_id_venta)
-// registrar_devolucion_parcial(p_id_venta,p_productos,p_medio,p_motivo,p_reponer_stock)
+// registrar_devolucion_parcial(p_id_venta,p_productos,p_medio,p_motivo,p_reponer_stock,p_origen_fondos)
 // No habilitar en producción hasta instalar/verificar las RPC.
 // ============================================================
 let venDevolucionEnProceso=false;
@@ -281,16 +281,23 @@ async function venAbrirDevolucionParcial(idVenta){
       <p class="ven-muted" style="margin-top:6px">Desmarcá esta opción si los productos están dañados o no pueden volver a venderse.</p>
       <div id="venDevReintegroInfo" class="ven-info" style="margin-top:14px">Calculando si corresponde un reintegro...</div>
       <div id="venDevMedioWrap" style="display:none"><label class="ven-label" for="venDevMedio">¿Cómo vas a devolver el dinero al cliente?</label>
-      <select class="ven-select" id="venDevMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select></div>
+      <select class="ven-select" id="venDevMedio"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select><div id="venDevOrigenWrap" style="margin-top:12px"><label class="ven-label" for="venDevOrigen">¿De dónde saldrá el efectivo?</label><select class="ven-select" id="venDevOrigen"><option value="">Seleccioná el origen del efectivo</option><option value="CAJA_DIARIA">Caja diaria</option><option value="FONDOS_EXTERNOS">Fondos externos</option></select><p class="ven-muted" style="margin-top:6px">Caja diaria exige caja abierta y saldo suficiente. Fondos externos no modifica Caja diaria.</p></div></div>
       <div class="ven-info" id="venDevResumen">Seleccioná al menos un producto.</div></div>
       <div class="ven-modal-foot"><button class="vi-client-btn alt" id="venDevCancelar">Cancelar</button><button class="vi-client-btn ok" id="venDevConfirmar">Confirmar devolución</button></div>
       </div></div>`;
     $('venDevCancelar').onclick=()=>venDetalle(idVenta);
     m.querySelectorAll('[data-ven-dev-id]').forEach(x=>x.addEventListener('input',venActualizarResumenDevolucion));
+    $('venDevMedio').onchange=venActualizarOrigenDevolucion;
     $('venDevConfirmar').onclick=()=>venConfirmarDevolucionParcial(idVenta);
+    venActualizarOrigenDevolucion();
     venActualizarResumenDevolucion();
   }catch(e){venToast('No se pudo abrir la devolución',venError(e),'error');}
 }
+function venActualizarOrigenDevolucion(){
+  const origenWrap=$('venDevOrigenWrap');
+  if(origenWrap)origenWrap.style.display=$('venDevMedio')?.value==='EFECTIVO'?'block':'none';
+}
+
 function venSeleccionDevolucion(){
   const inputs=$('venModal')?.querySelectorAll('[data-ven-dev-id]')||[];
   const items=[];
@@ -350,6 +357,9 @@ async function venConfirmarDevolucionParcial(idVenta){
   const motivo=($('venDevMotivo')?.value||'').trim();
   if(!motivo)return venToast('Motivo obligatorio','Ingresá el motivo de la devolución.','advertencia');
   const medio=$('venDevMedioWrap')?.style.display==='none'?null:$('venDevMedio')?.value;
+  const origen=medio==='EFECTIVO'?($('venDevOrigen')?.value||''): 'NO_APLICA';
+  if(medio==='EFECTIVO' && !['CAJA_DIARIA','FONDOS_EXTERNOS'].includes(origen))
+    return venToast('Origen obligatorio','Seleccioná Caja diaria o Fondos externos.','advertencia');
   const reponer=$('venDevReponer')?.checked===true;
   const ok=await confirmarVicora('Confirmar devolución',`¿Registrar la devolución de ${items.length} producto(s)? ${reponer?'Se reincorporarán al stock.':'No se reincorporarán al stock.'} Supabase calculará el ajuste económico.`);
   if(!ok)return;
@@ -357,7 +367,7 @@ async function venConfirmarDevolucionParcial(idVenta){
   const boton=$('venDevConfirmar');if(boton){boton.disabled=true;boton.textContent='Registrando...';}
   try{
     await venAcceso();
-    const {data,error}=await db.rpc('registrar_devolucion_parcial',{p_id_venta:idVenta,p_productos:items,p_medio:medio,p_motivo:motivo,p_reponer_stock:reponer});
+    const {data,error}=await db.rpc('registrar_devolucion_parcial',{p_id_venta:idVenta,p_productos:items,p_medio:medio,p_motivo:motivo,p_reponer_stock:reponer,p_origen_fondos:origen});
     if(error)throw error;
     if(!data?.ok)throw new Error(data?.mensaje||'La base de datos no confirmó la devolución.');
     venContextoDevolucion=null;venCerrar();await venCargar();
