@@ -260,10 +260,10 @@ async function venAbrirDevolucionParcial(idVenta){
         db.from('ventas').select('total').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta).single(),
         db.from('ventas_detalle').select('id_producto,cantidad,subtotal').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta),
         db.from('cuentas_cobrar').select('saldo_pendiente').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta).maybeSingle(),
-        db.from('devoluciones_detalle').select('credito').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta)
+        db.from('devoluciones_detalle').select('id_producto,cantidad,credito').eq('id_negocio',perfil.id_negocio).eq('id_venta',idVenta)
       ]);
       if([v,d,c,r].some(x=>x.error))throw new Error('No se pudo consultar la vista previa');
-      venDevDatosFinancieros={total:Number(v.data?.total||0),detalles:d.data||[],deuda:Number(c.data?.saldo_pendiente||0),creditoPrevio:(r.data||[]).reduce((a,x)=>a+Number(x.credito||0),0)};
+      venDevDatosFinancieros={total:Number(v.data?.total||0),detalles:d.data||[],devoluciones:r.data||[],deuda:Number(c.data?.saldo_pendiente||0),creditoPrevio:(r.data||[]).reduce((a,x)=>a+Number(x.credito||0),0)};
     }catch(e){console.warn('Vista previa de reintegro no disponible:',e);}
     const productos=(data.productos||[]).filter(p=>Number(p.disponible)>0);
     if(!productos.length){venToast('Sin productos disponibles','Todos los artículos de esta venta ya fueron devueltos.','advertencia');return;}
@@ -313,20 +313,38 @@ function venSeleccionDevolucion(){
 function venEstimarDevolucion(items){
   const f=venDevDatosFinancieros;
   if(!f)return null;
-  const bruto=f.detalles.reduce((s,p)=>s+Number(p.subtotal||0),0);
-  if(bruto<=0||f.total<=0)return null;
-  let seleccionado=0;
-  for(const item of items){
-    const lineas=f.detalles.filter(p=>String(p.id_producto)===String(item.id_producto));
-    const cant=lineas.reduce((s,p)=>s+Number(p.cantidad||0),0);
-    if(cant<=0)return null;
-    seleccionado+=lineas.reduce((s,p)=>s+Number(p.subtotal||0),0)*item.cantidad/cant;
+  const detalles=f.detalles||[], anteriores=f.devoluciones||[];
+  const brutoOriginal=detalles.reduce((s,p)=>s+Number(p.subtotal||0),0);
+  if(!Number.isFinite(brutoOriginal)||brutoOriginal<=0||!Number.isFinite(f.total)||f.total<=0)return null;
+  const productos=new Map();
+  for(const p of detalles){
+    const id=String(p.id_producto), previo=productos.get(id)||{cantidad:0,bruto:0};
+    previo.cantidad+=Number(p.cantidad||0);
+    previo.bruto+=Number(p.subtotal||0);
+    productos.set(id,previo);
   }
-  // Vista previa orientativa. La función SQL decide el importe final con los redondeos.
-  const creditoTotal=venN(f.total*seleccionado/bruto);
-  const credito=Math.max(0,creditoTotal);
+  let brutoAnterior=0;
+  for(const d of anteriores){
+    const p=productos.get(String(d.id_producto));
+    if(!p||p.cantidad<=0)return null;
+    brutoAnterior+=Number(d.cantidad||0)*p.bruto/p.cantidad;
+  }
+  let brutoSeleccionado=0;
+  for(const item of items){
+    const p=productos.get(String(item.id_producto));
+    if(!p||p.cantidad<=0)return null;
+    brutoSeleccionado+=p.bruto*Number(item.cantidad)/p.cantidad;
+  }
+  const brutoNuevo=brutoAnterior+brutoSeleccionado;
+  if(brutoNuevo>brutoOriginal+0.00001||!Number.isFinite(brutoNuevo))return null;
+  // Mismo criterio de acumulación y redondeo que registrar_devolucion_parcial en Supabase.
+  const creditoTotal=Math.abs(brutoNuevo-brutoOriginal)<0.00001
+    ? f.total : venN(f.total*brutoNuevo/brutoOriginal);
+  const credito=venN(creditoTotal-f.creditoPrevio);
+  if(!Number.isFinite(credito)||credito<0||f.creditoPrevio+credito>f.total+0.00001)return null;
   const deudaReducida=Math.min(credito,f.deuda);
-  return {credito,deudaReducida,reintegro:Math.max(0,venN(credito-deudaReducida))};
+  const reintegro=Math.max(0,venN(credito-deudaReducida));
+  return {credito,deudaReducida,reintegro,deudaRestante:Math.max(0,venN(f.deuda-deudaReducida))};
 }
 function venActualizarResumenDevolucion(){
   const el=$('venDevResumen'),info=$('venDevReintegroInfo'),wrap=$('venDevMedioWrap');
@@ -345,6 +363,7 @@ function venActualizarResumenDevolucion(){
     el.innerHTML=`<div style="display:grid;gap:7px">
       <div style="display:flex;justify-content:space-between;gap:12px"><span>Crédito por productos devueltos (estimado)</span><strong>${venDinero(calculo.credito)}</strong></div>
       <div style="display:flex;justify-content:space-between;gap:12px"><span>Descuento de deuda pendiente</span><strong>${venDinero(calculo.deudaReducida)}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:12px"><span>Deuda restante estimada</span><strong>${venDinero(calculo.deudaRestante)}</strong></div>
       <div style="border-top:1px solid currentColor;opacity:.18"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong>DINERO A REINTEGRAR AL CLIENTE</strong><strong style="font-size:23px">${venDinero(calculo.reintegro)}</strong></div>
       <small>Importe estimado. Supabase calcula el monto definitivo al confirmar.</small>
