@@ -323,8 +323,10 @@ function venEstimarDevolucion(items){
     seleccionado+=lineas.reduce((s,p)=>s+Number(p.subtotal||0),0)*item.cantidad/cant;
   }
   // Vista previa orientativa. La función SQL decide el importe final con los redondeos.
-  const credito=Math.max(0,venN(f.total*seleccionado/bruto));
-  return {credito,deudaReducida:Math.min(credito,f.deuda),reintegro:Math.max(0,venN(credito-f.deuda))};
+  const creditoTotal=venN(f.total*seleccionado/bruto);
+  const credito=Math.max(0,creditoTotal);
+  const deudaReducida=Math.min(credito,f.deuda);
+  return {credito,deudaReducida,reintegro:Math.max(0,venN(credito-deudaReducida))};
 }
 function venActualizarResumenDevolucion(){
   const el=$('venDevResumen'),info=$('venDevReintegroInfo'),wrap=$('venDevMedioWrap');
@@ -335,17 +337,23 @@ function venActualizarResumenDevolucion(){
     if(!items.length){el.textContent='Seleccioná al menos un producto.';if(info)info.textContent='Elegí los productos para saber si corresponde devolver dinero.';return;}
     const calculo=venEstimarDevolucion(items);
     if(!calculo){
-      el.textContent='Supabase calculará los importes definitivos al confirmar.';
+      el.textContent='Importe a reintegrar: no disponible en la vista previa. Supabase calculará el monto definitivo al confirmar.';
       if(info)info.textContent='No se pudo calcular la vista previa. Elegí el medio solo si Supabase determina que corresponde un reintegro.';
       if(wrap)wrap.style.display='block';
       return;
     }
-    el.textContent=`Crédito estimado: ${venDinero(calculo.credito)} · Deuda a reducir: ${venDinero(calculo.deudaReducida)}.`;
+    el.innerHTML=`<div style="display:grid;gap:7px">
+      <div style="display:flex;justify-content:space-between;gap:12px"><span>Crédito por productos devueltos (estimado)</span><strong>${venDinero(calculo.credito)}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:12px"><span>Descuento de deuda pendiente</span><strong>${venDinero(calculo.deudaReducida)}</strong></div>
+      <div style="border-top:1px solid currentColor;opacity:.18"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong>DINERO A REINTEGRAR AL CLIENTE</strong><strong style="font-size:23px">${venDinero(calculo.reintegro)}</strong></div>
+      <small>Importe estimado. Supabase calcula el monto definitivo al confirmar.</small>
+    </div>`;
     if(calculo.reintegro>0){
-      if(info)info.textContent=`Reintegro estimado: ${venDinero(calculo.reintegro)}. Seleccioná cómo entregarás el dinero.`;
+      if(info)info.textContent='Seleccioná cómo entregarás el dinero indicado abajo.';
       if(wrap)wrap.style.display='block';
     }else{
-      if(info)info.textContent='Sin reintegro de dinero: el importe se descontará de la cuenta corriente (o no corresponde devolver efectivo).';
+      if(info)info.textContent='No corresponde reintegrar dinero en esta devolución.';
     }
   }catch(e){el.textContent=venError(e);if(info)info.textContent='Revisá las cantidades seleccionadas.';}
 }
