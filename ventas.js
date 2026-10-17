@@ -194,43 +194,75 @@ function venImprimir80(v,det,cob){
   w.addEventListener('load',()=>{w.focus();w.print();},{once:true});
 }
 
-function venAbrirAnulacion(v){
+async function venAbrirAnulacion(v){
   if(v.estado!=='CONFIRMADA')return venToast('No disponible','Solo se anulan ventas confirmadas.','advertencia');
   const modal=$('venModal');if(!modal)return;
-  modal.innerHTML=`<div class="ven-modal"><div class="ven-dialog" style="width:min(540px,100%)">
-    <h2>Anular venta ${esc(v.id_venta)}</h2>
-    <p class="ven-info">Se restituirá el stock y se cancelará el saldo pendiente. La venta permanecerá en el historial.</p>
-    <label class="ven-label" for="venMotivo">Motivo de anulación (obligatorio)</label>
-    <textarea id="venMotivo" class="ven-input" rows="3" maxlength="500" placeholder="Escribí el motivo"></textarea>
-    <label class="ven-label" for="venDevolver" style="margin-top:15px">Dinero recibido del cliente</label>
-    <select id="venDevolver" class="ven-select"><option value="NO">No se devolvió: dejar pendiente</option><option value="SI">Sí, se devolvió todo lo cobrado</option></select>
-    <div id="venMedioWrap" style="display:none;margin-top:12px"><label class="ven-label" for="venMedioDevolucion">Medio de devolución</label>
-    <select id="venMedioDevolucion" class="ven-select"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select></div>
-    <div class="ven-modal-foot"><button class="vi-client-btn alt" id="venCancelarAnulacion">Cancelar</button>
-    <button class="vi-client-btn" id="venConfirmarAnulacion">Confirmar anulación</button></div></div></div>`;
-  $('venCancelarAnulacion').onclick=()=>venDetalle(v.id_venta);
-  $('venDevolver').onchange=()=>{$('venMedioWrap').style.display=$('venDevolver').value==='SI'?'block':'none';};
-  $('venConfirmarAnulacion').onclick=()=>venEjecutarAnulacion(v.id_venta);
+  try{
+    await venAcceso();
+    const [c,cc]=await Promise.all([
+      db.from('cobros_clientes').select('importe').eq('id_negocio',perfil.id_negocio).eq('id_venta',v.id_venta).eq('estado','REGISTRADO'),
+      db.from('cuentas_cobrar').select('saldo_pendiente').eq('id_negocio',perfil.id_negocio).eq('id_venta',v.id_venta).maybeSingle()
+    ]);
+    if(c.error)throw c.error;
+    if(cc.error)throw cc.error;
+    const cobrado=venN((c.data||[]).reduce((sum,x)=>sum+Number(x.importe||0),0));
+    const deuda=venN(cc.data?.saldo_pendiente||0);
+    modal.innerHTML=`<div class="ven-modal"><div class="ven-dialog" style="width:min(540px,100%)">
+      <h2>Anular venta ${esc(v.id_venta)}</h2>
+      <p class="ven-info">Se restituirá el stock y se cancelará el saldo pendiente. La venta permanecerá en el historial.</p>
+      <div class="ven-card" style="margin-top:12px;padding:14px">
+        <div class="ven-totals"><div><span>Total de venta</span><strong>${venDinero(v.total)}</strong></div>
+        <div><span>Deuda que se cancelará</span><strong>${venDinero(deuda)}</strong></div>
+        <div><span>Dinero cobrado</span><strong>${venDinero(cobrado)}</strong></div></div>
+        <div style="margin-top:12px;border-top:1px solid #cbd5e1;padding-top:10px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><strong>DINERO A REINTEGRAR</strong><strong style="font-size:23px;color:#172554">${venDinero(cobrado)}</strong></div>
+        <p class="ven-muted" style="margin:7px 0 0">Se reintegra solo si elegís «Sí, se devolvió». El importe definitivo se valida en Supabase.</p>
+      </div>
+      <label class="ven-label" for="venMotivo">Motivo de anulación (obligatorio)</label>
+      <textarea id="venMotivo" class="ven-input" rows="3" maxlength="500" placeholder="Escribí el motivo"></textarea>
+      <label class="ven-label" for="venDevolver" style="margin-top:15px">Dinero recibido del cliente</label>
+      <select id="venDevolver" class="ven-select"><option value="NO">No se devolvió: dejar pendiente</option><option value="SI">Sí, se devolvió todo lo cobrado</option></select>
+      <div id="venMedioWrap" style="display:none;margin-top:12px"><label class="ven-label" for="venMedioDevolucion">Medio de devolución</label>
+      <select id="venMedioDevolucion" class="ven-select"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option><option value="DEBITO">Débito</option><option value="CREDITO">Crédito</option><option value="OTRO">Otro</option></select>
+      <div id="venOrigenAnulacionWrap" style="margin-top:12px"><label class="ven-label" for="venOrigenAnulacion">¿De dónde saldrá el efectivo?</label>
+      <select id="venOrigenAnulacion" class="ven-select"><option value="">Seleccioná el origen del efectivo</option><option value="CAJA_DIARIA">Caja diaria</option><option value="FONDOS_EXTERNOS">Fondos externos</option></select>
+      <p class="ven-muted" style="margin-top:6px">Caja diaria exige caja abierta y efectivo suficiente. Fondos externos no modifica Caja diaria.</p></div></div>
+      <div class="ven-modal-foot"><button class="vi-client-btn alt" id="venCancelarAnulacion">Cancelar</button>
+      <button class="vi-client-btn" id="venConfirmarAnulacion">Confirmar anulación</button></div></div></div>`;
+    const actualizar=()=>{
+      const mostrar=$('venDevolver').value==='SI'&&cobrado>0;
+      $('venMedioWrap').style.display=mostrar?'block':'none';
+      $('venOrigenAnulacionWrap').style.display=mostrar&&$('venMedioDevolucion').value==='EFECTIVO'?'block':'none';
+    };
+    $('venCancelarAnulacion').onclick=()=>venDetalle(v.id_venta);
+    $('venDevolver').onchange=actualizar;
+    $('venMedioDevolucion').onchange=actualizar;
+    $('venConfirmarAnulacion').onclick=()=>venEjecutarAnulacion(v.id_venta,cobrado);
+    actualizar();
+  }catch(e){venToast('No se pudo preparar la anulación',venError(e),'error');}
 }
 
-async function venEjecutarAnulacion(id){
+async function venEjecutarAnulacion(id,cobrado){
   const motivo=($('venMotivo')?.value||'').trim();
   const devolver=$('venDevolver')?.value==='SI';
-  const medio=devolver?$('venMedioDevolucion')?.value:null;
+  const medio=devolver&&cobrado>0?$('venMedioDevolucion')?.value:null;
+  const origen=medio==='EFECTIVO'?($('venOrigenAnulacion')?.value||''):'NO_APLICA';
   if(!motivo)return venToast('Motivo obligatorio','Escribí por qué se anula la venta.','advertencia');
-  const ok=await confirmarVicora('Confirmar anulación',`¿Anular definitivamente la venta ${id}? ${devolver?'Se registrará la devolución de todo lo cobrado.':'El dinero cobrado quedará pendiente de devolución.'}`);
+  if(medio==='EFECTIVO'&&!['CAJA_DIARIA','FONDOS_EXTERNOS'].includes(origen))
+    return venToast('Origen obligatorio','Seleccioná Caja diaria o Fondos externos.','advertencia');
+  const detalle=devolver?(cobrado>0?`Se registrará un reintegro de ${venDinero(cobrado)} (${medio==='EFECTIVO'?(origen==='CAJA_DIARIA'?'Caja diaria':'Fondos externos'):medio}).`:'No hay cobros para reintegrar.'):`Quedará pendiente de reintegro ${venDinero(cobrado)}.`;
+  const ok=await confirmarVicora('Confirmar anulación',`¿Anular definitivamente la venta ${id}? ${detalle} Se cancelará la deuda pendiente y se repondrá el stock.`);
   if(!ok)return;
   const boton=$('venConfirmarAnulacion');if(boton){boton.disabled=true;boton.textContent='Anulando...';}
   try{
     await venAcceso();
     const {data,error}=await db.rpc('anular_venta',{
       p_id_negocio:perfil.id_negocio,p_id_venta:id,p_motivo:motivo,
-      p_devolver_dinero:devolver,p_medio_devolucion:medio
+      p_devolver_dinero:devolver,p_medio_devolucion:medio,p_origen_fondos:origen
     });
     if(error)throw error;
     if(!data?.ok)throw new Error('La base de datos no confirmó la anulación.');
     venCerrar();await venCargar();
-    venToast('Venta anulada',`${id} · Devolución pendiente: ${venDinero(data.devolucion_pendiente)}`,'exito');
+    venToast('Venta anulada',`${id} · Reintegrado: ${venDinero(data.importe_devuelto)} · Pendiente: ${venDinero(data.devolucion_pendiente)}`,'exito');
   }catch(e){venToast('No se pudo anular',venError(e),'error');}
   finally{if(boton?.isConnected){boton.disabled=false;boton.textContent='Confirmar anulación';}}
 }
