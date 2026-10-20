@@ -1766,6 +1766,17 @@ button.vi-accion-actualizar:hover:not(:disabled) { background: #bfdbfe !importan
 
 /* VICORA Gastos */
 .vg-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:15px 0 20px}.vg-kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px}.vg-kpi small{display:block;color:#64748b;margin-bottom:10px}.vg-kpi strong{font-size:clamp(16px,2vw,25px);overflow-wrap:anywhere}.vg-filtros{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 16px}.vg-filtros input,.vg-filtros select,.vi-client-fields select{padding:11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;min-width:130px}.vg-filtros #vgBuscar{flex:1;min-width:190px}.vg-estado{font-size:11px;font-weight:800;border-radius:20px;padding:5px 8px;background:#e2e8f0}.vg-pagado{background:#dcfce7;color:#166534}.vg-pendiente{background:#fef3c7;color:#92400e}#vgOverlay .vi-client-btn.warn{background:#dc2626!important;color:#fff!important;border-color:#dc2626!important}#vgOverlay .vi-client-btn.ok{background:#15803d!important;color:#fff!important;border-color:#15803d!important}@media(max-width:900px){.vg-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.vg-kpis{grid-template-columns:1fr 1fr}.vg-kpi{padding:12px}.vg-filtros>*{width:100%}}
+
+/* VICORA · filtros de stock y colores de acciones en Productos */
+.vi-producto-filtros{display:flex;gap:9px;flex-wrap:wrap;margin:-4px 0 16px}
+.vi-producto-filtros button{border:1px solid #cbd5e1;border-radius:9px;padding:9px 13px;background:#fff;color:#334155;font-size:12px;font-weight:700;cursor:pointer}
+.vi-producto-filtros button.activo{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.vi-producto-filtros button:hover:not(.activo){background:#eff6ff}
+.vi-client-actions button[data-producto-accion="ver"]{background:#dbeafe!important;color:#1d4ed8!important;border-color:#93c5fd!important}
+.vi-client-actions button[data-producto-accion="editar"]{background:#ffedd5!important;color:#9a3412!important;border-color:#fdba74!important}
+.vi-client-actions button[data-producto-accion="ajustar"]{background:#ede9fe!important;color:#6d28d9!important;border-color:#c4b5fd!important}
+.vi-client-actions button[data-producto-accion="estado"]{background:#ffe4e6!important;color:#be123c!important;border-color:#fda4af!important}
+.vi-client-actions button[data-producto-accion="estado"].producto-activar{background:#dcfce7!important;color:#166534!important;border-color:#86efac!important}
 </style><style id="vicoraAjustesVisuales20261012">
 /* Acciones secundarias coherentes */
 .vicora-boton-rojo{background:#dc2626!important;border:1px solid #dc2626!important;color:white!important;font-weight:700!important}
@@ -2354,7 +2365,7 @@ async function actualizarContadorInicio(){
 // =========================================================
 // PASO 61 · PRODUCTOS (Supabase PostgreSQL + RLS)
 // =========================================================
-let productosActuales=[],productosBusqueda='',productosPagina=1;
+let productosActuales=[],productosBusqueda='',productosPagina=1,productosFiltroStock='todos';
 const PRODUCTOS_POR_PAGINA=15;
 const PRODUCTOS_UNIDADES=['Unidad','Kg','Gramo','Litro','Mililitro','Metro','Centímetro','Metro cuadrado','Metro cúbico','Paquete','Caja','Bolsa','Docena','Par','Rollo','Servicio','Otro'];
 
@@ -2383,7 +2394,7 @@ async function obtenerProductosDB(){
  return todos;
 }
 async function mostrarProductos(boton){
- seleccionar(boton);productosBusqueda='';productosPagina=1;
+ seleccionar(boton);productosBusqueda='';productosPagina=1;productosFiltroStock='todos';
  $('contenidoPrincipal').innerHTML=`<h1 class="page-title">Productos</h1><p class="page-subtitle">Catálogo, precios y control de stock · ${esc(negocio.nombre)}</p><div class="vi-client-toolbar"><input id="productosBuscar" type="search" placeholder="Buscar por código de barras, nombre, marca, categoría..." aria-label="Buscar productos" oninput="productoBuscarTexto()"><button class="vi-client-btn" type="button" onclick="abrirProductoFormulario()">+ Nuevo producto</button><button class="vi-client-btn alt" type="button" onclick="recargarProductos()">Actualizar</button></div><div id="productosResumen"></div><div id="productosListado" class="vi-client-table-wrap"><p style="padding:25px">Cargando productos...</p></div><div id="productosModal"></div>`;
  await recargarProductos();
 }
@@ -2395,17 +2406,25 @@ async function recargarProductos(){
 }
 function productoBuscarTexto(){productosBusqueda=$('productosBuscar')?.value||'';productosPagina=1;pintarTablaProductos();}
 function productoCambiarPagina(n){productosPagina=n;pintarTablaProductos();}
+function productoFiltrarStock(filtro){productosFiltroStock=filtro;productosPagina=1;pintarTablaProductos();}
 function pintarTablaProductos(){
  const lista=$('productosListado');if(!lista)return;
  const q=productosBusqueda.trim().toLocaleLowerCase('es');
- const items=productosActuales.filter(p=>!q||[p.id_producto,p.codigo,p.nombre,p.descripcion,p.categoria,p.marca,p.unidad_medida,p.unidad].join(' ').toLocaleLowerCase('es').includes(q));
+ const items=productosActuales.filter(p=>{
+  const coincide=!q||[p.id_producto,p.codigo,p.nombre,p.descripcion,p.categoria,p.marca,p.unidad_medida,p.unidad].join(' ').toLocaleLowerCase('es').includes(q);
+  if(!coincide)return false;
+  if(productosFiltroStock==='todos')return true;
+  if(p.estado!=='ACTIVO')return false;
+  const stock=Number(p.stock||0),minimo=Number(p.stock_minimo||0);
+  return productosFiltroStock==='agotados'?stock<=0:stock>0&&stock<=minimo;
+ });
  const activos=productosActuales.filter(p=>p.estado==='ACTIVO');
  const bajo=activos.filter(p=>Number(p.stock||0)<=Number(p.stock_minimo||0));
  const resumen=$('productosResumen');
- if(resumen)resumen.innerHTML=`<div class="vi-producto-summary"><span class="vi-producto-chip">Total: <strong>${productosActuales.length}</strong></span><span class="vi-producto-chip">Activos: <strong>${activos.length}</strong></span><span class="vi-producto-chip">Stock bajo o agotado: <strong>${bajo.length}</strong></span></div>`;
+ if(resumen)resumen.innerHTML=`<div class="vi-producto-summary"><span class="vi-producto-chip">Total: <strong>${productosActuales.length}</strong></span><span class="vi-producto-chip">Activos: <strong>${activos.length}</strong></span><span class="vi-producto-chip">Stock bajo o agotado: <strong>${bajo.length}</strong></span></div><div class="vi-producto-filtros" role="group" aria-label="Filtrar productos por stock"><button type="button" class="${productosFiltroStock==='todos'?'activo':''}" onclick="productoFiltrarStock('todos')">Todos</button><button type="button" class="${productosFiltroStock==='bajo'?'activo':''}" onclick="productoFiltrarStock('bajo')">⚠ Stock bajo</button><button type="button" class="${productosFiltroStock==='agotados'?'activo':''}" onclick="productoFiltrarStock('agotados')">⛔ Agotados</button></div>`;
  const paginas=Math.max(1,Math.ceil(items.length/PRODUCTOS_POR_PAGINA));productosPagina=Math.min(productosPagina,paginas);
  const visibles=items.slice((productosPagina-1)*PRODUCTOS_POR_PAGINA,productosPagina*PRODUCTOS_POR_PAGINA);
- lista.innerHTML=`<div class="vi-client-count" style="padding:15px 15px 0">Mostrando ${visibles.length} de ${items.length} coincidencias</div>${visibles.length?`<table class="vi-client-table"><thead><tr><th>ID</th><th>Código</th><th>Producto</th><th>Categoría / Marca</th><th>Unidad</th><th>Compra</th><th>Venta</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${visibles.map(p=>{const st=productoEstadoStock(p);return `<tr><td>${esc(p.id_producto)}</td><td>${esc(p.codigo||'—')}</td><td><strong>${esc(p.nombre)}</strong></td><td>${esc(p.categoria||'—')}<br><small>${esc(p.marca||'')}</small></td><td>${esc(p.unidad_medida||'Unidad')}</td><td>${esc(productoMoneda(p.precio_compra))}</td><td>${esc(productoMoneda(p.precio_venta))}</td><td><strong>${esc(productoCantidad(p.stock))}</strong><br><span class="vi-producto-stock ${st.clase}">${st.texto}</span></td><td><span class="vi-client-status ${p.estado==='ACTIVO'?'':'off'}">${esc(p.estado)}</span></td><td><div class="vi-client-actions"><button type="button" data-producto-accion="ver" data-producto-id="${esc(p.id_producto)}">Ver</button><button type="button" data-producto-accion="editar" data-producto-id="${esc(p.id_producto)}">Editar</button><button type="button" data-producto-accion="ajustar" data-producto-id="${esc(p.id_producto)}" ${p.estado!=='ACTIVO'?'disabled title="Solo productos activos"':''}>Ajustar stock</button><button type="button" data-producto-accion="estado" data-producto-id="${esc(p.id_producto)}">${p.estado==='ACTIVO'?'Desactivar':'Activar'}</button></div></td></tr>`}).join('')}</tbody></table>`:'<p style="padding:25px;color:#64748b">No hay productos que coincidan con la búsqueda.</p>'}${paginas>1?`<div class="vicora-ver-mas"><button type="button" class="vi-client-btn alt" onclick="productoCambiarPagina(${productosPagina-1})" ${productosPagina===1?'disabled':''}>Anterior</button><span>Página ${productosPagina} de ${paginas}</span><button type="button" class="vi-client-btn alt" onclick="productoCambiarPagina(${productosPagina+1})" ${productosPagina===paginas?'disabled':''}>Siguiente</button></div>`:''}`;
+ lista.innerHTML=`<div class="vi-client-count" style="padding:15px 15px 0">Mostrando ${visibles.length} de ${items.length} coincidencias</div>${visibles.length?`<table class="vi-client-table"><thead><tr><th>ID</th><th>Código</th><th>Producto</th><th>Categoría / Marca</th><th>Unidad</th><th>Compra</th><th>Venta</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${visibles.map(p=>{const st=productoEstadoStock(p);return `<tr><td>${esc(p.id_producto)}</td><td>${esc(p.codigo||'—')}</td><td><strong>${esc(p.nombre)}</strong></td><td>${esc(p.categoria||'—')}<br><small>${esc(p.marca||'')}</small></td><td>${esc(p.unidad_medida||'Unidad')}</td><td>${esc(productoMoneda(p.precio_compra))}</td><td>${esc(productoMoneda(p.precio_venta))}</td><td><strong>${esc(productoCantidad(p.stock))}</strong><br><span class="vi-producto-stock ${st.clase}">${st.texto}</span></td><td><span class="vi-client-status ${p.estado==='ACTIVO'?'':'off'}">${esc(p.estado)}</span></td><td><div class="vi-client-actions"><button type="button" data-producto-accion="ver" data-producto-id="${esc(p.id_producto)}">Ver</button><button type="button" data-producto-accion="editar" data-producto-id="${esc(p.id_producto)}">Editar</button><button type="button" data-producto-accion="ajustar" data-producto-id="${esc(p.id_producto)}" ${p.estado!=='ACTIVO'?'disabled title="Solo productos activos"':''}>Ajustar stock</button><button type="button" data-producto-accion="estado" class="${p.estado==='ACTIVO'?'':'producto-activar'}" data-producto-id="${esc(p.id_producto)}">${p.estado==='ACTIVO'?'Desactivar':'Activar'}</button></div></td></tr>`}).join('')}</tbody></table>`:'<p style="padding:25px;color:#64748b">No hay productos que coincidan con la búsqueda.</p>'}${paginas>1?`<div class="vicora-ver-mas"><button type="button" class="vi-client-btn alt" onclick="productoCambiarPagina(${productosPagina-1})" ${productosPagina===1?'disabled':''}>Anterior</button><span>Página ${productosPagina} de ${paginas}</span><button type="button" class="vi-client-btn alt" onclick="productoCambiarPagina(${productosPagina+1})" ${productosPagina===paginas?'disabled':''}>Siguiente</button></div>`:''}`;
  // Delegación: evita insertar IDs en expresiones JavaScript generadas.
  lista.querySelectorAll('[data-producto-accion]').forEach(b=>b.addEventListener('click',()=>{
   const id=b.dataset.productoId;
