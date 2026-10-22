@@ -3196,39 +3196,36 @@ function vicoraMostrarTutoriales(boton) {
   const cont = document.getElementById('contenidoPrincipal');
   if (!cont) return;
   const modulos = [
-    'Registro, inicio de sesión y panel de inicio',
-    'Clientes, productos y proveedores',
-    'Ventas',
-    'Compras',
-    'Gastos',
-    'Caja',
-    'Cobros',
-    'Pagos',
-    'Reportes',
-    'Presupuestos',
-    'Suscripción'
+    {titulo:'Registro, inicio de sesión y panel de inicio', id:'wEdDh4CS8sg'},
+    {titulo:'Clientes, productos y proveedores', id:'tKWntBLEx-0'},
+    {titulo:'Ventas', id:'bLHuxhas2vg'},
+    {titulo:'Compras', id:'F3K-q_QO2Ik'},
+    {titulo:'Gastos', id:'xBVK27BV4_g'},
+    {titulo:'Caja', id:'JT4tFuqevAc'},
+    {titulo:'Cobros', id:'fwLZk64aLdg'},
+    {titulo:'Pagos', id:'COZNS9dA-X4'},
+    {titulo:'Reportes', id:'T-3q7Zjl5K8'},
+    {titulo:'Presupuestos', id:'vuynuhFLNFk'},
+    {titulo:'Suscripción', id:'NtHNkLo8r4M'}
   ];
-  const canal = 'https://www.youtube.com/@VICORAComercial';
-  const tarjetas = modulos.map((titulo, i) => {
+  const tarjetas = modulos.map((modulo, i) => {
     const numero = String(i + 1).padStart(2, '0');
-    const reproductor = i === 0
-      ? '<div class="vi-tutorial-player"><iframe src="https://www.youtube-nocookie.com/embed/wEdDh4CS8sg" title="Tutorial 01 - Registro e inicio" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>'
+    const reproductor = modulo.id
+      ? '<div class="vi-tutorial-player"><iframe src="https://www.youtube-nocookie.com/embed/' + modulo.id + '" title="Tutorial ' + numero + ' - ' + modulo.titulo + '" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>'
       : '';
-    const nota = i === 0
-      ? 'Reproducí el tutorial directamente desde VICORA.'
-      : i >= 9
-        ? 'Disponible en el canal cuando finalice su publicación.'
-        : 'Buscá este tutorial en nuestro canal oficial.';
+    const nota = modulo.id
+      ? 'Mirá este tutorial sin salir de VICORA.'
+      : 'Próximamente disponible en esta sección.';
+    const enlace = modulo.id
+      ? '<a class="vi-tutorial-link" href="https://youtu.be/' + modulo.id + '" target="_blank" rel="noopener noreferrer">▶ Abrir en YouTube</a>'
+      : '';
     return '<article class="vi-tutorial-card">' + reproductor +
-      '<h3>Tutorial ' + numero + ' — ' + titulo + '</h3>' +
-      '<p>' + nota + '</p>' +
-      '<a class="vi-tutorial-link" href="' + canal + '" target="_blank" rel="noopener noreferrer">▶ Ver canal de YouTube</a>' +
-      '</article>';
+      '<h3>Tutorial ' + numero + ' — ' + modulo.titulo + '</h3>' +
+      '<p>' + nota + '</p>' + enlace + '</article>';
   }).join('');
   cont.innerHTML = '<h1 class="page-title">Tutoriales en video</h1>' +
     '<p class="page-subtitle">Aprendé a utilizar VICORA Comercial paso a paso.</p>' +
-    '<div class="vi-tutorial-grid">' + tarjetas + '</div>' +
-    '<div class="vi-tutorial-note">Los videos se incorporarán aquí de forma individual a medida que tengamos sus enlaces definitivos. Mientras tanto, podés encontrarlos en nuestro canal oficial.</div>';
+    '<div class="vi-tutorial-grid">' + tarjetas + '</div>';
 }
 </script>
 </body></html>
