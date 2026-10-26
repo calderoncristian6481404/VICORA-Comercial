@@ -2115,23 +2115,26 @@ tbody tr[hidden]{display:none!important}
 
 
 
+  <script src="config/pruebas-arca.local.js"></script>
+  <script src="config/pruebas-arca.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-nav-v2" defer></script><script src="compras.js?v=20261012-nav-v2" defer></script><script src="ventas.js?v=20261012-nav-v2" defer></script><script src="pagos.js?v=20261012-nav-v2" defer></script><script src="cobros.js?v=20261012-clientes-cuenta-v2" defer></script><script src="caja.js?v=20261012-nav-v2" defer></script><script src="reportes.js?v=20261012-gastos-reportes-v2" defer></script><script src="gastos.js?v=20261012-v1" defer></script><script src="presupuestos.js?v=20261012-v1" defer></script><script src="inicio.js?v=20261012-dashboard-v1" defer></script><script>
 'use strict';
-const SUPABASE_URL='https://nxdimgzcsjnjjdfdpatp.supabase.co';
-const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
-const ACCESO_URL='https://calderoncristian6481404.github.io/vicora-acceso/';
+// Desarrollo exclusivo para desarrollo-facturacion-arca. Sin fallback a producción.
+const ACCESO_URL=location.pathname;
 const $=id=>document.getElementById(id);
 let db=null, perfil=null, negocio=null, suscripciones=[];
 let clientesActuales=[],clientesBusqueda='',clientesAviso='',clientesError=false,clientesCargando=false;
 const nombres={clientes:'Clientes',productos:'Productos',proveedores:'Proveedores',ventas:'Ventas',compras:'Compras',caja:'Caja',cobros:'Cobros',pagos:'Pagos',reportes:'Reportes',gastos:'Gastos',presupuestos:'Presupuestos'};
-function mensajeBloqueo(texto){$('guard').innerHTML='';const h=document.createElement('h2');h.textContent='VICORA Comercial';const p=document.createElement('p');p.textContent=texto;const b=document.createElement('button');b.textContent='Volver a VICORA Acceso';b.onclick=()=>location.assign(ACCESO_URL);const c=document.createElement('div');c.append(h,p,b);$('guard').append(c);$('guard').style.display='grid';$('sistema').style.display='none';}
+function mensajeBloqueo(texto){$('guard').innerHTML='';const h=document.createElement('h2');h.textContent='VICORA Comercial · PRUEBAS ARCA';const p=document.createElement('p');p.textContent=texto;const b=document.createElement('button');b.textContent='Reintentar en pruebas ARCA';b.onclick=()=>location.assign(ACCESO_URL);const c=document.createElement('div');c.append(h,p,b);$('guard').append(c);$('guard').style.display='grid';$('sistema').style.display='none';}
 async function iniciar(){
  try{
   if(!window.supabase?.createClient)throw new Error('No se pudo cargar Supabase. Comprobá la conexión a Internet.');
-  db=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,flowType:'pkce'}});
+  if(!window.VicoraPruebasArca)throw new Error('Falta cargar la protección del entorno de pruebas.');
+  db=window.VicoraPruebasArca.crearCliente(window.supabase);
+  document.title='[PRUEBAS ARCA] VICORA Comercial';
   const {data:{session},error:sessionError}=await db.auth.getSession();
   if(sessionError)throw sessionError;
-  if(!session){mensajeBloqueo('No hay una sesión iniciada. Ingresá primero desde VICORA Acceso.');return;}
+  if(!session){mensajeBloqueo('PRUEBAS ARCA: no hay una sesión de pruebas. El acceso de pruebas debe configurarse para este proyecto; no uses VICORA Acceso de producción.');return;}
   const {data:{user},error:userError}=await db.auth.getUser();
   if(userError||!user){mensajeBloqueo('La sesión no es válida. Volvé a ingresar desde VICORA Acceso.');return;}
   const {data:usuarios,error:e1}=await db.from('usuarios').select('id_usuario,id_negocio,nombre,rol,estado,auth_user_id');
