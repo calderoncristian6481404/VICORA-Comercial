@@ -1,0 +1,25 @@
+name: VICORA subscription expiry guards
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'ventas.js'
+      - 'DB/MIGRACIONES/20261112_guardia_suscripcion_escrituras.sql'
+      - 'tests/suscripcion_guard.test.cjs'
+      - '.github/workflows/verify-subscription-guard.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  subscription-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check sales JavaScript syntax
+        run: node --check ventas.js
+      - name: Subscription frontend+backend contract regression (no network)
+        run: node --test tests/suscripcion_guard.test.cjs
