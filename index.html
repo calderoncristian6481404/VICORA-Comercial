@@ -2147,7 +2147,8 @@ async function iniciar(){
   if((subs||[]).some(s=>s.id_negocio!==perfil.id_negocio))throw new Error('Se detectaron suscripciones de otro negocio. Revisar RLS.');
   suscripciones=(subs||[]).filter(s=>s.id_sistema==='SIS-000001');
   if(!suscripciones.length)throw new Error('Este negocio no tiene suscripción a VICORA Comercial.');
-  if(!suscripciones.some(s=>['ACTIVA','PRUEBA'].includes(String(s.estado||'').toUpperCase())))throw new Error('La suscripción a VICORA Comercial no está habilitada.');
+  // Conservamos acceso al historial y a Mi suscripcion aunque el plazo haya vencido.
+  // Las escrituras se bloquean en PostgreSQL y se comprueban desde la interfaz.
   // Los módulos se habilitan progresivamente, comenzando por Clientes.
   $('nombreNegocio').textContent=negocio.nombre;
   $('nombreUsuario').textContent=perfil.nombre;
@@ -2249,7 +2250,31 @@ async function clienteVerificarAcceso(){
  if(pe||ps?.length!==1||ps[0].auth_user_id!==user.id||ps[0].id_negocio!==perfil.id_negocio||ps[0].estado!=='ACTIVO')throw new Error('Tu usuario ya no está autorizado.');
  const {data:ss,error:se}=await db.from('suscripciones').select('id_negocio,id_sistema,estado,proximo_vencimiento');
  if(se)throw se;
- if(!(ss||[]).some(s=>s.id_negocio===perfil.id_negocio&&s.id_sistema==='SIS-000001'&&['ACTIVA','PRUEBA'].includes(String(s.estado||'').toUpperCase())))throw new Error('La suscripción no está habilitada.');
+ if(!(ss||[]).some(s=>s.id_negocio===perfil.id_negocio&&s.id_sistema==='SIS-000001'))throw new Error('No hay suscripción registrada para este negocio.');
+}
+
+// Comprobacion de escritura (la autoridad definitiva permanece en PostgreSQL).
+// Nunca usar el estado ACTIVA sin contrastar el plazo verdadero en Argentina.
+async function vicoraExigirSuscripcionVigente(){
+  await clienteVerificarAcceso();
+  const {data, error}=await db.from('suscripciones')
+    .select('estado,fecha_fin_prueba,proximo_vencimiento')
+    .eq('id_negocio',perfil.id_negocio)
+    .eq('id_sistema','SIS-000001')
+    .maybeSingle();
+  if(error||!data)throw new Error('No se pudo verificar la vigencia de tu suscripción.');
+  const piezas=new Intl.DateTimeFormat('en-US',{
+    timeZone:'America/Argentina/Buenos_Aires',
+    year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(new Date());
+  const hoyP=Object.fromEntries(piezas.map(p=>[p.type,p.value]));
+  const hoy=hoyP.year+'-'+hoyP.month+'-'+hoyP.day;
+  const estado=String(data.estado||'').trim().toUpperCase();
+  const fecha=String(estado==='PRUEBA'?data.fecha_fin_prueba:data.proximo_vencimiento||'').slice(0,10);
+  const ok=['PRUEBA','ACTIVA'].includes(estado) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(fecha) && fecha>=hoy;
+  if(!ok)throw new Error('Suscripción vencida o suspendida. Podés consultar tu historial y renovar desde Mi suscripción.');
+  return true;
 }
 async function obtenerClientesDB(){
  await clienteVerificarAcceso();
@@ -3075,9 +3100,14 @@ async function vicoraMostrarMiSuscripcion(boton){
     if(!data||data.length!==1)throw new Error('No se encontró una única suscripción para tu negocio.');
     const sub=data[0];
     const formato=(v)=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?`${v.slice(8,10)}/${v.slice(5,7)}/${v.slice(0,4)}`:'Sin definir';
-    const estado=String(sub.estado||'Sin definir').toUpperCase();
-    const fecha=estado==='PRUEBA'?sub.fecha_fin_prueba:sub.proximo_vencimiento;
-    const nombreFecha=estado==='PRUEBA'?'Fin de prueba gratuita':'Próximo vencimiento';
+    const estadoOriginal=String(sub.estado||'Sin definir').toUpperCase();
+    const fecha=estadoOriginal==='PRUEBA'?sub.fecha_fin_prueba:sub.proximo_vencimiento;
+    const partesHoy=new Intl.DateTimeFormat('en-US',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const h=Object.fromEntries(partesHoy.map(p=>[p.type,p.value]));
+    const hoy=h.year+'-'+h.month+'-'+h.day;
+    const expirado=!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha||'').slice(0,10))||String(fecha).slice(0,10)<hoy;
+    const estado=estadoOriginal==='ACTIVA'||estadoOriginal==='PRUEBA' ? (expirado?'VENCIDA':estadoOriginal) : estadoOriginal;
+    const nombreFecha=estadoOriginal==='PRUEBA'?'Fin de prueba gratuita':'Próximo vencimiento';
     caja.textContent='';
     const titulo=document.createElement('h2');titulo.textContent='Tu suscripción · VICORA Comercial';
     const facts=document.createElement('div');facts.className='vi-sub-facts';
