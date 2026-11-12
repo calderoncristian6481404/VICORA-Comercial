@@ -37,13 +37,13 @@ function pintarCompras(){const el=$('comprasListado');if(!el)return;const q=comp
 }
 function compraVerMas(){comprasPagina++;pintarCompras();}
 function cerrarCompraModal(){const m=$('comprasModal');if(m)m.replaceChildren();}
-async function abrirCompraNueva(){
+async function abrirCompraNueva(){if(vicoraBloquearEdicion())return;
  try{await compraAcceso();compraProveedores=await compraLeerTabla('proveedores','id_negocio,id_proveedor,nombre,estado');
  const activos=compraProveedores.filter(p=>p.estado==='ACTIVO');if(!activos.length)throw new Error('Primero registrá un proveedor activo en el módulo Proveedores.');
  $('comprasModal').innerHTML=`<div class="vi-prov-overlay"><div class="vi-prov-dialog" role="dialog" aria-modal="true" aria-label="Nueva compra"><h2>Nueva compra</h2><p class="vi-muted" style="margin-bottom:15px">Primero creá el borrador. Después agregá los productos y confirmá para actualizar el stock.</p><form id="compraNuevaForm" onsubmit="guardarCompraNueva(event)"><div class="vi-prov-fields"><label>Proveedor *<select name="id_proveedor" required>${activos.map(p=>`<option value="${compraEsc(p.id_proveedor)}">${compraEsc(p.nombre)}</option>`).join('')}</select></label><label>Fecha de compra *<input name="fecha_compra" type="date" required value="${compraHoy()}"></label><label>Tipo de comprobante<input name="tipo_comprobante" maxlength="70" placeholder="Factura A, B, remito..."></label><label>Número de comprobante<input name="numero_comprobante" maxlength="100"></label><label class="full">Observaciones<textarea name="observaciones" maxlength="2000"></textarea></label></div><p id="compraNuevaError" class="vi-prov-error" hidden></p><div class="vi-prov-footer"><button type="button" class="vi-client-btn alt" onclick="cerrarCompraModal()">Cancelar</button><button type="submit" class="vi-client-btn" id="compraNuevaGuardar">Crear borrador</button></div></form></div></div>`;
  }catch(e){compraAviso('No se puede crear la compra',String(e.message||e),'error');}
 }
-async function guardarCompraNueva(e){e.preventDefault();const f=e.currentTarget,btn=$('compraNuevaGuardar'),err=$('compraNuevaError');btn.disabled=true;err.hidden=true;
+async function guardarCompraNueva(e){e.preventDefault();if(vicoraBloquearEdicion())return;const f=e.currentTarget,btn=$('compraNuevaGuardar'),err=$('compraNuevaError');btn.disabled=true;err.hidden=true;
  try{await compraAcceso();const v=k=>String(f.elements.namedItem(k)?.value||'').trim();const prov=v('id_proveedor');if(!compraProveedores.some(p=>p.id_proveedor===prov&&p.estado==='ACTIVO'))throw new Error('Seleccioná un proveedor activo.');
  const datos={id_negocio:perfil.id_negocio,id_proveedor:prov,fecha_compra:v('fecha_compra'),tipo_comprobante:v('tipo_comprobante')||null,numero_comprobante:v('numero_comprobante')||null,observaciones:v('observaciones')||null,estado:'BORRADOR'};
  const {data,error}=await db.from('compras').insert(datos).select('id_compra').single();if(error)throw error;
@@ -67,11 +67,11 @@ function pintarCompraDetalle(){const c=compraSeleccionada;if(!c)return;const bor
  el.innerHTML=`<div class="vi-prov-overlay"><div class="vi-prov-dialog" style="width:min(950px,100%)" role="dialog" aria-modal="true" aria-label="Detalle de compra"><h2>Compra ${compraEsc(c.id_compra)}</h2><div class="vi-prov-details" style="margin-bottom:18px"><div><small>Proveedor</small><strong>${compraEsc(compraNombreProveedor(c.id_proveedor))}</strong></div><div><small>Fecha</small><strong>${compraFecha(c.fecha_compra)}</strong></div><div><small>Comprobante</small><strong>${compraEsc([c.tipo_comprobante,c.numero_comprobante].filter(Boolean).join(' ')||'—')}</strong></div><div><small>Estado</small><strong>${compraEsc(c.estado)}</strong></div></div><h3 style="margin-bottom:12px">Productos de la compra</h3><div class="vi-client-table-wrap"><table class="vi-client-table" style="min-width:640px"><thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th>${borrador?'<th>Acción</th>':''}</tr></thead><tbody>${compraLineas.length?compraLineas.map(l=>`<tr><td>${compraEsc(compraProducto(l.id_producto)?.nombre||l.id_producto)}</td><td>${compraEsc(l.cantidad)}</td><td>${compraMoney(l.precio_compra)}</td><td>${compraMoney(Math.round(Number(l.cantidad)*Number(l.precio_compra)*100)/100)}</td>${borrador?`<td><button class="vi-client-btn warn" type="button" data-compra-borrar="${l.numero_linea}" style="padding:7px 10px">Quitar</button></td>`:''}</tr>`).join(''):`<tr><td colspan="${borrador?5:4}" style="text-align:center;color:#64748b">Todavía no hay productos.</td></tr>`}</tbody></table></div><p style="text-align:right;margin-top:15px;font-size:18px"><strong>Total: ${compraMoney(c.estado==='CONFIRMADA'?c.total:total)}</strong></p>${pagoPanel}${borrador?`<div id="compraAgregarContenedor" style="margin-top:18px"></div><p class="vi-muted" style="margin-top:12px">El stock aumenta únicamente cuando confirmás la compra.</p>`:''}<div class="vi-prov-footer"><button class="vi-client-btn alt" type="button" onclick="cerrarCompraModal()">Cerrar</button>${borrador?`<button class="vi-client-btn alt" type="button" onclick="compraMostrarAgregar()">+ Agregar producto</button><button class="vi-client-btn ok" type="button" onclick="confirmarCompraActual()" ${!compraLineas.length?'disabled':''}>Confirmar compra</button>`:''}${c.estado==='CONFIRMADA'?`<button class="vi-client-btn warn" type="button" onclick="compraAbrirAnulacion()">Anular compra</button>`:''}</div></div></div>`;
  if(borrador)compraActualizarCamposPago();
 }
-function compraMostrarAgregar(){const el=$('compraAgregarContenedor');if(!el)return;const productos=compraProductos.filter(p=>p.estado==='ACTIVO');if(!productos.length){compraAviso('Sin productos','Primero cargá productos activos.','advertencia');return;}
+function compraMostrarAgregar(){if(vicoraBloquearEdicion())return;const el=$('compraAgregarContenedor');if(!el)return;const productos=compraProductos.filter(p=>p.estado==='ACTIVO');if(!productos.length){compraAviso('Sin productos','Primero cargá productos activos.','advertencia');return;}
  el.innerHTML=`<form id="compraAgregarForm" onsubmit="agregarLineaCompra(event)" style="background:#f8fafc;border:1px solid #dbe3ec;border-radius:12px;padding:15px"><h3 style="margin-bottom:12px">Agregar producto</h3><div class="vi-prov-fields"><label>Producto *<select name="id_producto" required onchange="compraPrecioSugerido()"><option value="">Seleccionar producto...</option>${productos.map(p=>`<option value="${compraEsc(p.id_producto)}">${compraEsc(p.nombre)}${p.codigo?' · '+compraEsc(p.codigo):''}</option>`).join('')}</select></label><label>Cantidad *<input name="cantidad" type="number" step="0.001" min="0.001" required></label><label>Precio de compra unitario *<input name="precio_compra" type="number" step="0.01" min="0" required></label></div><p id="compraLineaError" class="vi-prov-error" hidden></p><div class="vi-prov-footer"><button class="vi-client-btn" id="compraLineaGuardar" type="submit">Guardar producto</button></div></form>`;
 }
 function compraPrecioSugerido(){const f=$('compraAgregarForm');if(!f)return;const p=compraProducto(f.elements.namedItem('id_producto').value);if(p)f.elements.namedItem('precio_compra').value=Number(p.precio_compra||0).toFixed(2);}
-async function agregarLineaCompra(e){e.preventDefault();const f=e.currentTarget,btn=$('compraLineaGuardar'),err=$('compraLineaError'),c=compraSeleccionada;if(!c||c.estado!=='BORRADOR')return;btn.disabled=true;err.hidden=true;
+async function agregarLineaCompra(e){e.preventDefault();if(vicoraBloquearEdicion())return;const f=e.currentTarget,btn=$('compraLineaGuardar'),err=$('compraLineaError'),c=compraSeleccionada;if(!c||c.estado!=='BORRADOR')return;btn.disabled=true;err.hidden=true;
  try{await compraAcceso();const id=f.elements.namedItem('id_producto').value,cant=Number(f.elements.namedItem('cantidad').value),precio=Number(f.elements.namedItem('precio_compra').value);
  if(!compraProducto(id)||compraProducto(id).estado!=='ACTIVO')throw new Error('Seleccioná un producto activo.');if(!Number.isFinite(cant)||cant<=0||!Number.isFinite(precio)||precio<0)throw new Error('Revisá la cantidad y el precio.');if(cant>999999999||precio>999999999)throw new Error('Cantidad o precio demasiado grande.');
  const linea=Math.max(0,...compraLineas.map(l=>Number(l.numero_linea)))+1;
@@ -79,7 +79,7 @@ async function agregarLineaCompra(e){e.preventDefault();const f=e.currentTarget,
  compraAviso('Producto agregado','El detalle de la compra se guardó.','exito');await abrirCompraDetalle(c.id_compra);
  }catch(x){err.textContent=String(x.message||x);err.hidden=false;compraAviso('No se pudo agregar el producto',String(x.message||x),'error');}finally{if(btn.isConnected)btn.disabled=false;}
 }
-async function quitarLineaCompra(n){const c=compraSeleccionada;if(!c||c.estado!=='BORRADOR')return;
+async function quitarLineaCompra(n){if(vicoraBloquearEdicion())return;const c=compraSeleccionada;if(!c||c.estado!=='BORRADOR')return;
  if(!await confirmarVicora('Quitar producto','¿Querés quitar este producto del borrador?',true))return;
  try{await compraAcceso();const {error}=await db.from('compras_detalle').delete().eq('id_negocio',perfil.id_negocio).eq('id_compra',c.id_compra).eq('numero_linea',n);if(error)throw error;compraAviso('Producto quitado','El borrador fue actualizado.','exito');await abrirCompraDetalle(c.id_compra);}catch(e){compraAviso('No se pudo quitar',String(e.message||e),'error');}
 }
@@ -93,7 +93,7 @@ function compraActualizarCamposPago(){
   if(origenCont)origenCont.style.display=pedirOrigen?'':'none';
   if(origen)origen.required=pedirOrigen;
 }
-async function guardarCondicionCompra(){
+async function guardarCondicionCompra(){if(vicoraBloquearEdicion())return;
  const c=compraSeleccionada;if(!c||c.estado!=='BORRADOR')return false;
  const btn=$('compraPagoGuardar'),condicion=$('compraCondicion')?.value;
  const medio=condicion==='CUENTA_CORRIENTE'?null:($('compraMedio')?.value||null);
@@ -113,7 +113,7 @@ async function guardarCondicionCompra(){
  }catch(e){compraAviso('No se pudo guardar el pago',String(e.message||e),'error');return false;}
  finally{if(btn?.isConnected)btn.disabled=false;}
 }
-async function confirmarCompraActual(){const c=compraSeleccionada;if(!c||c.estado!=='BORRADOR'||!compraLineas.length)return;
+async function confirmarCompraActual(){if(vicoraBloquearEdicion())return;const c=compraSeleccionada;if(!c||c.estado!=='BORRADOR'||!compraLineas.length)return;
  const condicion=$('compraCondicion')?.value||c.condicion_pago||'CUENTA_CORRIENTE';
  const importe=condicion==='PAGO_PARCIAL'?Number($('compraImporte')?.value):condicion==='CONTADO'?compraLineas.reduce((sum,l)=>sum+Math.round(Number(l.cantidad)*Number(l.precio_compra)*100)/100,0):0;
  if(!await confirmarVicora('Confirmar compra',`¿Confirmás la compra ${c.id_compra}? Se actualizará el stock y ${condicion==='CUENTA_CORRIENTE'?'quedará el saldo pendiente':`se registrará un pago de ${compraMoney(importe)}`}. Esta operación no se puede deshacer desde esta pantalla.`))return;
@@ -130,7 +130,7 @@ document.addEventListener('click',e=>{const abrir=e.target.closest('[data-compra
 // La operación de stock, reintegro y estado se ejecuta
 // exclusivamente en la RPC transaccional de Supabase.
 // =========================================================
-function compraAbrirAnulacion(){
+function compraAbrirAnulacion(){if(vicoraBloquearEdicion())return;
  const c=compraSeleccionada;
  if(!c||c.estado!=='CONFIRMADA')return;
  const el=$('comprasModal');if(!el)return;
@@ -156,7 +156,7 @@ function compraActualizarDevolucion(){
  if(sel)sel.required=activo;
 }
 async function compraEjecutarAnulacion(event){
- event.preventDefault();
+ event.preventDefault();if(vicoraBloquearEdicion())return;
  const form=event.currentTarget, c=compraSeleccionada;
  if(!c||c.estado!=='CONFIRMADA')return;
  const btn=$('compraAnularGuardar'),err=$('compraAnularError');
