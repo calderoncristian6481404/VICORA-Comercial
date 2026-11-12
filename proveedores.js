@@ -42,7 +42,7 @@ function pintarProveedores(){
 }
 function proveedorVerMas(){proveedoresPagina++;pintarProveedores();}
 function cerrarProveedorModal(){$('proveedoresModal')?.replaceChildren();}
-function abrirProveedorFormulario(id=null){
+function abrirProveedorFormulario(id=null){if(vicoraBloquearEdicion())return;
  const p=id?proveedorPorId(id):null;if(id&&!p)return;
  const modal=$('proveedoresModal');if(!modal)return;
  const val=k=>proveedorEsc(p?.[k]??'');
@@ -51,7 +51,7 @@ function abrirProveedorFormulario(id=null){
  modal.querySelector('input[name="nombre"]')?.focus();
 }
 async function guardarProveedor(event){
- event.preventDefault();const form=event.currentTarget;const modal=$('proveedoresModal');const id=modal?.dataset.editando||null;
+ event.preventDefault();if(vicoraBloquearEdicion())return;const form=event.currentTarget;const modal=$('proveedoresModal');const id=modal?.dataset.editando||null;
  const boton=$('proveedorGuardarBtn'),err=$('proveedorFormError');if(!boton||!err)return;
  const campos=['tipo','nombre','nombre_contacto','cuit_cuil','telefono','email','direccion','localidad','provincia','observaciones'];
  const datos={};for(const k of campos){const v=String(form.elements.namedItem(k)?.value||'').trim();datos[k]=v||null;}
@@ -73,7 +73,7 @@ function verFichaProveedor(id){
  modal.innerHTML=`<div class="vi-prov-overlay"><div class="vi-prov-dialog" role="dialog" aria-modal="true" aria-label="Ficha del proveedor"><h2>Ficha del proveedor</h2><div class="vi-prov-details">${campos.map(([k,v])=>`<div class="${k==='Observaciones'?'full':''}"><small>${proveedorEsc(k)}</small><strong>${proveedorEsc(v||'—')}</strong></div>`).join('')}</div><div class="vi-prov-footer"><button type="button" class="vi-client-btn alt" onclick="cerrarProveedorModal()">Cerrar</button><button type="button" class="vi-client-btn" id="provEditarDesdeFicha">Editar</button></div></div></div>`;
  modal.querySelector('#provEditarDesdeFicha').onclick=()=>abrirProveedorFormulario(id);
 }
-async function alternarProveedor(id){
+async function alternarProveedor(id){if(vicoraBloquearEdicion())return;
  const p=proveedorPorId(id);if(!p)return;
  const nuevo=p.estado==='ACTIVO'?'INACTIVO':'ACTIVO';
  if(!await confirmarVicora(nuevo==='ACTIVO'?'Activar proveedor':'Desactivar proveedor',`¿Querés ${nuevo==='ACTIVO'?'activar':'desactivar'} a ${p.nombre}?`,nuevo==='INACTIVO'))return;
