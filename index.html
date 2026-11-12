@@ -2115,7 +2115,7 @@ tbody tr[hidden]{display:none!important}
 
 
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-nav-v2" defer></script><script src="compras.js?v=20261012-nav-v2" defer></script><script src="ventas.js?v=20261112-vencimiento-v1" defer></script><script src="pagos.js?v=20261012-nav-v2" defer></script><script src="cobros.js?v=20261012-clientes-cuenta-v2" defer></script><script src="caja.js?v=20261012-nav-v2" defer></script><script src="reportes.js?v=20261012-gastos-reportes-v2" defer></script><script src="gastos.js?v=20261012-v1" defer></script><script src="presupuestos.js?v=20261012-v1" defer></script><script src="inicio.js?v=20261012-dashboard-v1" defer></script><script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script src="proveedores.js?v=20261012-nav-v2" defer></script><script src="compras.js?v=20261012-nav-v2" defer></script><script src="solo_lectura.js?v=20261112-modo-consulta-v1" defer></script><script src="ventas.js?v=20261112-vencimiento-v1" defer></script><script src="pagos.js?v=20261012-nav-v2" defer></script><script src="cobros.js?v=20261012-clientes-cuenta-v2" defer></script><script src="caja.js?v=20261012-nav-v2" defer></script><script src="reportes.js?v=20261012-gastos-reportes-v2" defer></script><script src="gastos.js?v=20261012-v1" defer></script><script src="presupuestos.js?v=20261012-v1" defer></script><script src="inicio.js?v=20261012-dashboard-v1" defer></script><script>
 'use strict';
 const SUPABASE_URL='https://nxdimgzcsjnjjdfdpatp.supabase.co';
 const SUPABASE_PUBLIC_KEY='sb_publishable_4LbyNm4vT3qBh6v6OIjB4Q_IDb4OpRB';
@@ -2142,13 +2142,14 @@ async function iniciar(){
   if(e2)throw e2;
   if(negocios?.length!==1||negocios[0].id_negocio!==perfil.id_negocio)throw new Error('No se encontró un único negocio autorizado. Revisar RLS.');
   negocio=negocios[0];if(negocio.estado&&negocio.estado!=='ACTIVO')throw new Error('El negocio no está activo.');
-  const {data:subs,error:e3}=await db.from('suscripciones').select('id_suscripcion,id_negocio,id_sistema,estado,proximo_vencimiento');
+  const {data:subs,error:e3}=await db.from('suscripciones').select('id_suscripcion,id_negocio,id_sistema,estado,fecha_fin_prueba,proximo_vencimiento');
   if(e3)throw e3;
   if((subs||[]).some(s=>s.id_negocio!==perfil.id_negocio))throw new Error('Se detectaron suscripciones de otro negocio. Revisar RLS.');
   suscripciones=(subs||[]).filter(s=>s.id_sistema==='SIS-000001');
   if(!suscripciones.length)throw new Error('Este negocio no tiene suscripción a VICORA Comercial.');
   // Conservamos acceso al historial y a Mi suscripcion aunque el plazo haya vencido.
   // Las escrituras se bloquean en PostgreSQL y se comprueban desde la interfaz.
+  vicoraSoloLecturaInicio(suscripciones[0]);
   // Los módulos se habilitan progresivamente, comenzando por Clientes.
   $('nombreNegocio').textContent=negocio.nombre;
   $('nombreUsuario').textContent=perfil.nombre;
@@ -2158,7 +2159,7 @@ async function iniciar(){
    setTimeout(()=>vicoraAvisarVencimiento(suscripciones),350);
  }catch(err){mensajeBloqueo('No se pudo habilitar el panel: '+String(err?.message||err));}
 }
-function seleccionar(boton){document.querySelectorAll('.sidebar .menu-item').forEach(b=>b.classList.remove('active'));if(boton)boton.classList.add('active');}
+function seleccionar(boton){document.querySelectorAll('.sidebar .menu-item').forEach(b=>b.classList.remove('active'));if(boton)boton.classList.add('active');vicoraSoloLecturaRefrescar().catch(()=>{});}
 function aviso(){return '<div class="vi-test-note"><strong>Migración a Supabase.</strong> Clientes, Productos y Proveedores están conectados a PostgreSQL. Los demás módulos siguen pendientes. Google Apps Script y Sheets no se modifican.</div>';}
 function mostrarInicio(boton){return vicoraMostrarInicio(boton);}
 function mostrarModulo(modulo,boton){if(modulo==='presupuestos'){mostrarPresupuestos(boton);return;}if(modulo==='gastos'){mostrarGastos(boton);return;}if(modulo==='cobros'){mostrarCobros(boton);return;}if(modulo==='clientes'){mostrarClientes(boton);return;}if(modulo==='productos'){mostrarProductos(boton);return;}if(modulo==='proveedores'){mostrarProveedores(boton);return;}if(modulo==='compras'){mostrarCompras(boton);return;}if(modulo==='ventas'){mostrarVentas(boton);return;}if(modulo==='pagos'){mostrarPagos(boton);return;}if(modulo==='caja'){mostrarCaja(boton);return;}if(modulo==='reportes'){mostrarReportes(boton);return;}seleccionar(boton);const nombre=nombres[modulo]||'Módulo';$('contenidoPrincipal').innerHTML=`<h1 class="page-title">${esc(nombre)}</h1><p class="page-subtitle">VICORA Comercial · ${esc(negocio.nombre)}</p>${aviso()}<div class="vi-module-placeholder"><h2>${esc(nombre)}</h2><p>La pantalla de ${esc(nombre.toLowerCase())} se conectará a PostgreSQL en una próxima etapa. Por seguridad, las operaciones están deshabilitadas durante esta prueba.</p><span class="vi-status">Pendiente de migración</span></div>`;}
@@ -2273,6 +2274,7 @@ async function vicoraExigirSuscripcionVigente(){
   const fecha=String(estado==='PRUEBA'?data.fecha_fin_prueba:data.proximo_vencimiento||'').slice(0,10);
   const ok=['PRUEBA','ACTIVA'].includes(estado) &&
     /^\d{4}-\d{2}-\d{2}$/.test(fecha) && fecha>=hoy;
+  vicoraSoloLecturaFijar(data);
   if(!ok)throw new Error('Suscripción vencida o suspendida. Podés consultar tu historial y renovar desde Mi suscripción.');
   return true;
 }
@@ -2304,7 +2306,7 @@ function pintarTablaClientes(){
 }
 function clientePorId(id){return clientesActuales.find(c=>c.id_cliente===id);}
 function cerrarClienteModal(){const m=$('clientesModal');if(m)m.innerHTML='';}
-function abrirClienteFormulario(id=''){
+function abrirClienteFormulario(id=''){if(vicoraBloquearEdicion())return;
  const c=id?clientePorId(id):null;if(id&&!c)return clienteMensaje('No se encontró el cliente.',true);
  const campos=[['nombre','Nombre *'],['apellido','Apellido *'],['documento','Documento'],['telefono','Teléfono'],['email','Correo electrónico'],['direccion','Dirección'],['localidad','Localidad'],['provincia','Provincia']];
  $('clientesModal').innerHTML=`<div class="vi-client-overlay" role="presentation"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="${id?'Editar':'Nuevo'} cliente"><h2>${id?'Editar cliente':'Nuevo cliente'}</h2><form id="clienteForm" onsubmit="guardarCliente(event,'${esc(id)}')"><div class="vi-client-fields">${campos.map(([k,label])=>`<label>${label}<input name="${k}" ${k==='email'?'type="email"':''} ${k==='nombre'||k==='apellido'?'required maxlength="120"':'maxlength="250"'} value="${esc(c?.[k]||(k==='provincia'?'Córdoba':''))}"></label>`).join('')}</div><div id="clienteModalError" class="vi-client-alert err" hidden></div><div class="vi-client-footer"><button type="button" class="vi-client-btn alt" onclick="cerrarClienteModal()">Cancelar</button><button id="guardarClienteBtn" type="submit" class="vi-client-btn">Guardar</button></div></form></div></div>`;
@@ -2316,7 +2318,7 @@ async function generarClienteId(){
  return 'CLI-'+String(max+1).padStart(6,'0');
 }
 async function guardarCliente(event,id){
- event.preventDefault();const form=$('clienteForm');if(!form)return;
+ event.preventDefault();if(vicoraBloquearEdicion())return;const form=$('clienteForm');if(!form)return;
  const btn=$('guardarClienteBtn'),err=$('clienteModalError');btn.disabled=true;err.hidden=true;
  const fd=new FormData(form),v=k=>String(fd.get(k)||'').trim();
  const datos={nombre:v('nombre'),apellido:v('apellido'),documento:v('documento'),telefono:v('telefono'),email:v('email'),direccion:v('direccion'),localidad:v('localidad'),provincia:v('provincia')};
@@ -2359,7 +2361,7 @@ async function verFichaCliente(id){
   destino.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin:12px 0"><div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;flex:1;min-width:130px"><small>Saldo pendiente</small><div style="font-weight:800;color:#9a3412">${money(saldo)}</div></div><div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;flex:1;min-width:130px"><small>Ventas con deuda</small><div style="font-weight:800">${pendientes.length}</div></div><div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px;flex:1;min-width:130px"><small>Cobros registrados</small><div style="font-weight:800">${cobros.length}</div></div></div><h4 style="margin:15px 0 8px">Ventas del cliente</h4>${cuentas.length?`<div style="overflow-x:auto"><table class="vi-client-table"><thead><tr><th>Venta</th><th>Fecha</th><th>Total</th><th>Cobrado</th><th>Saldo</th><th>Acción</th></tr></thead><tbody>${cuentas.slice(0,15).map(x=>`<tr><td>${esc(x.id_venta)}</td><td>${fecha(x.fecha_alta)}</td><td>${money(x.total)}</td><td>${money(x.total_cobrado)}</td><td><strong>${money(x.saldo_pendiente)}</strong></td><td>${Number(x.saldo_pendiente)>0?`<button class="vi-client-btn" type="button" onclick="clienteCobrarVenta('${esc(x.id_venta)}')">Cobrar</button>`:'Sin deuda'}</td></tr>`).join('')}</tbody></table></div>${cuentas.length>15?`<small>Mostrando 15 de ${cuentas.length} ventas. Consultá el resto en Cobros.</small>`:''}`:'<p>No tiene ventas registradas en cuenta corriente.</p>'}<h4 style="margin:15px 0 8px">Últimos cobros</h4>${cobros.length?`<div style="overflow-x:auto"><table class="vi-client-table"><thead><tr><th>Fecha</th><th>Venta</th><th>Medio</th><th>Importe</th></tr></thead><tbody>${cobros.slice(0,15).map(x=>`<tr><td>${fecha(x.fecha_cobro)}</td><td>${esc(x.id_venta)}</td><td>${esc(x.medio_pago)}</td><td>${money(x.importe)}</td></tr>`).join('')}</tbody></table></div>${cobros.length>15?`<small>Mostrando los últimos 15 cobros.</small>`:''}`:'<p>No tiene cobros registrados.</p>'}`;
  }catch(e){if(destino.isConnected)destino.innerHTML=`<div class="vi-client-alert err">No se pudo consultar la cuenta corriente: ${esc(e.message||e)}</div>`;}
 }
-async function clienteCobrarVenta(idVenta){
+async function clienteCobrarVenta(idVenta){if(vicoraBloquearEdicion())return;
  cerrarClienteModal();
  const boton=Array.from(document.querySelectorAll('.sidebar .menu-item')).find(x=>(x.getAttribute('onclick')||'').includes("mostrarModulo('cobros'"));
  if(!boton||typeof mostrarModulo!=='function'||typeof vcCargar!=='function')return notificarVicora('Cobros no disponible','No se pudo abrir el módulo Cobros.','error');
@@ -2381,7 +2383,7 @@ function confirmarVicora(titulo,descripcion,esPeligroso=false){
   document.body.append(overlay);document.addEventListener('keydown',tecla);cancelar.focus();
  });
 }
-async function alternarCliente(id){
+async function alternarCliente(id){if(vicoraBloquearEdicion())return;
  const c=clientePorId(id);if(!c)return;
  const estado=c.estado==='ACTIVO'?'INACTIVO':'ACTIVO';
  if(!await confirmarVicora(estado==='ACTIVO'?'Activar cliente':'Desactivar cliente',`¿Querés ${estado==='ACTIVO'?'activar':'desactivar'} a ${c.nombre} ${c.apellido}?`,estado!=='ACTIVO'))return;
@@ -2466,7 +2468,7 @@ function pintarTablaProductos(){
  }));
 }
 function cerrarProductoModal(){const m=$('productosModal');if(m)m.innerHTML='';}
-function abrirProductoFormulario(id=''){
+function abrirProductoFormulario(id=''){if(vicoraBloquearEdicion())return;
  const p=id?productoPorId(id):null;
  if(id&&!p){notificarVicora('Producto no encontrado','Actualizá el listado e intentá nuevamente.','error');return;}
  const campos=[['codigo','Código de barras / Código comercial','text'],['nombre','Nombre *','text'],['descripcion','Descripción','text'],['categoria','Categoría','text'],['marca','Marca','text'],['precio_compra','Precio de compra','number'],['precio_venta','Precio de venta','number'],['stock','Stock inicial','number'],['stock_minimo','Stock mínimo','number']];
@@ -2499,7 +2501,7 @@ function abrirProductoFormulario(id=''){
  if(!id)codigoInput.focus();else $('productoForm').querySelector('[name="nombre"]').focus();
 }
 async function guardarProducto(event,id){
- event.preventDefault();const form=$('productoForm');if(!form)return;
+ event.preventDefault();if(vicoraBloquearEdicion())return;const form=$('productoForm');if(!form)return;
  const btn=$('guardarProductoBtn'),err=$('productoModalError');btn.disabled=true;err.hidden=true;
  const fd=new FormData(form),v=k=>String(fd.get(k)||'').trim();
  const num=k=>{const raw=v(k);if(raw==='')return 0;const n=Number(raw);if(!Number.isFinite(n)||n<0)throw new Error('Revisá el valor de '+k.replaceAll('_',' ')+'.');return n;};
@@ -2527,7 +2529,7 @@ async function guardarProducto(event,id){
  finally{if(btn.isConnected)btn.disabled=false;}
 }
 // PASO 68.22 — Ajustes manuales de stock mediante RPC segura de Supabase.
-function abrirAjusteStock(id){
+function abrirAjusteStock(id){if(vicoraBloquearEdicion())return;
  const p=productoPorId(id);
  if(!p||p.estado!=='ACTIVO'){notificarVicora('Producto no disponible','Solo se puede ajustar stock de productos activos.','advertencia');return;}
  $('productosModal').innerHTML=`<div class="vi-client-overlay"><div class="vi-client-dialog" role="dialog" aria-modal="true" aria-label="Ajustar stock"><h2>Ajustar stock</h2><p style="color:#475569;font-size:13px;margin-bottom:16px"><strong>${esc(p.nombre)}</strong> · ${esc(p.id_producto)}<br>Stock actual: <strong>${esc(productoCantidad(p.stock))} ${esc(p.unidad_medida||'')}</strong></p><form id="ajusteStockForm"><div class="vi-client-fields vi-producto-fields"><label>Movimiento *<select name="tipo" required><option value="ENTRADA">Entrada (+)</option><option value="SALIDA">Salida (−)</option></select></label><label>Cantidad *<input type="number" name="cantidad" min="0.001" step="0.001" inputmode="decimal" required placeholder="Ej.: 5"></label><label style="grid-column:1/-1">Motivo *<input name="motivo" type="text" minlength="3" maxlength="250" required placeholder="Ej.: Corrección de inventario"></label></div><div id="ajusteStockError" class="vi-client-alert err" hidden></div><div class="vi-client-footer"><button type="button" class="vi-client-btn alt" id="cancelarAjusteStock">Cancelar</button><button type="submit" class="vi-client-btn" id="confirmarAjusteStock">Confirmar ajuste</button></div></form></div></div>`;
@@ -2559,7 +2561,7 @@ function verFichaProducto(id){
  $('cerrarFichaProducto').addEventListener('click',cerrarProductoModal);
  $('editarFichaProducto').addEventListener('click',()=>abrirProductoFormulario(id));
 }
-async function alternarProducto(id){
+async function alternarProducto(id){if(vicoraBloquearEdicion())return;
  const p=productoPorId(id);if(!p)return;
  const estado=p.estado==='ACTIVO'?'INACTIVO':'ACTIVO';
  const ok=await confirmarVicora(estado==='ACTIVO'?'Activar producto':'Desactivar producto',`¿Querés ${estado==='ACTIVO'?'activar':'desactivar'} el producto «${p.nombre}»?`,estado!=='ACTIVO');
