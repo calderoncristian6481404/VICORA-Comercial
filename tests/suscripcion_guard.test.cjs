@@ -29,6 +29,7 @@ async function runGate(subscription,dbError=null){
   const ctx={
     perfil:{id_negocio:'NEG-SYNTHETIC'},
     clienteVerificarAcceso:async()=>{},
+    vicoraSoloLecturaFijar:()=>{},
     db:{from(table){
       assert.equal(table,'suscripciones');
       return {select(fields){
@@ -54,7 +55,7 @@ test('JavaScript principal y formulario de ventas compilan',()=>{
   new vm.Script(sales);
 });
 test('venta nueva y confirmacion revalidan la suscripcion',()=>{
-  assert.match(sales,/async function venNueva\(\)\{try\{await vicoraExigirSuscripcionVigente\(\);/);
+  assert.match(sales,/async function venNueva\(\)\{if\(vicoraBloquearEdicion\(\)\)return;try\{await vicoraExigirSuscripcionVigente\(\);/);
   assert.match(sales,/let idVenta=null;try\{await venAcceso\(\);await vicoraExigirSuscripcionVigente\(\);/);
 });
 test('ACTIVA vigente y dia de vencimiento permiten operar',async()=>{
