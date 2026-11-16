@@ -57,7 +57,7 @@ root.vicoraArcaInstalar=function({db,createAuthClient,role}){
     view.d.append(node('p','No hay CAE verificado: no se habilitan PDF, QR ni impresión fiscal.'),view.close);view.d.showModal();return value;
   };
   root.VICORA_ARCA_UI_HABILITADA=true;
-  if(button&&role==='ADMIN'){
+  if(button&&role==='ADMINISTRADOR'){
     button.hidden=false;button.onclick=async()=>{
       const view=dialog('Configuración · Facturación electrónica');
       view.d.append(node('p','Opcional por comercio. Usá la identidad fiscal propia del comercio. Guardar no habilita emisión ni valida representación.'));

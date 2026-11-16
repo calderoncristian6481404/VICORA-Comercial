@@ -55,5 +55,15 @@ test('UI default off, memory-only password reauth, no fiscal credential or print
  assert.ok(code.includes('root.VICORA_ARCA_UI_HABILITADA=false'));assert.ok(code.includes("password.value=''"));assert.ok(code.includes('signInWithPassword'));
  assert.ok(html.includes('persistSession:false,autoRefreshToken:false,detectSessionInUrl:false'));
  assert.ok(!code.includes('localStorage'));assert.ok(!code.includes('db.rpc'));assert.ok(!code.includes('/emit'));assert.ok(!code.includes('/reserve'));
- assert.ok(code.includes('No hay CAE verificado'));assert.ok(code.includes("role==='ADMIN'"));
+ assert.ok(code.includes('No hay CAE verificado'));assert.ok(code.includes("role==='ADMINISTRADOR'"));
+ // Verifica el rol real de public.usuarios en VICORA Comercial.
+ const button={hidden:true};
+ const browser={VICORA_ARCA_CONFIG:{enabled:true,apiOrigin:'https://fiscal.invalid'},fetch:async()=>{throw Error('Unexpected network');}};
+ const env={window:browser,document:{getElementById:id=>id==='vicoraArcaConfiguracion'?button:null},URL,AbortController,setTimeout,clearTimeout};
+ vm.createContext(env);vm.runInContext(code,env);
+ browser.vicoraArcaInstalar({db,role:'ADMINISTRADOR',createAuthClient:()=>({})});
+ assert.equal(button.hidden,false);
+ assert.equal(typeof button.onclick,'function');
+ browser.vicoraArcaInstalar({db,role:'VENDEDOR',createAuthClient:()=>({})});
+ assert.equal(button.hidden,true);
 });
