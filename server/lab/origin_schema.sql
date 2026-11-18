@@ -1,4 +1,5 @@
 -- HYPOTHETICAL DELEGATION, DISPOSABLE PG17 ONLY. Never a hosted migration.
+BEGIN;
 DO $guard$ BEGIN
  IF current_database() !~ '^r131_[0-9a-f]{24}$' OR inet_server_addr() IS NOT NULL
  OR current_setting('listen_addresses')<>'' OR pg_read_file('/run/r131/marker')<>current_database()
@@ -192,3 +193,5 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA origin_api FROM PUBLIC;
 GRANT USAGE ON SCHEMA origin_api TO origin_gateway_lab,origin_materializer_lab;
 GRANT EXECUTE ON FUNCTION origin_api.prepare(text) TO origin_gateway_lab;
 GRANT EXECUTE ON FUNCTION origin_api.load(uuid),origin_api.pending(),origin_api.ack(uuid,uuid,text) TO origin_materializer_lab;
+
+COMMIT;

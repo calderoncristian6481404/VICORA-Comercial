@@ -3,6 +3,8 @@
 Autorización PR #4, comentario 6966494776. Este código NO instala nada en Supabase
 ni Contabo. `server/lab/origin_schema.sql` sólo admite el cluster marcado de R131,
 sin red y con nombre aleatorio; aborta antes de DDL en cualquier otro destino.
+Todo el DDL está en una transacción: aun si psql continúa tras el error de la
+guardia (ON_ERROR_STOP=0), no quedan roles ni schemas parcialmente instalados.
 No se ha verificado que Supabase gestionado permita esta delegación/ownership.
 
 ## Cambio de semántica explícito
