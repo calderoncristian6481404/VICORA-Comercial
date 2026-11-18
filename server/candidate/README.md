@@ -53,7 +53,7 @@ actual; no se vuelven a pedir los 21 cuerpos SQL ni se publican originales priva
 
 ## Concurrencia, Auth y fallos
 
-Auth row FOR SHARE → tablas usuarios/suscripciones/detalles SHARE → filas de negocio,
+Control de admisión FOR SHARE → Auth row FOR SHARE → tablas usuarios/suscripciones/detalles SHARE → filas de negocio,
 suscripción, venta y cliente → outbox. Hay costo de bloqueo global para evitar
 phantoms sin inventar constraints que no se verificaron. Los escritores existentes,
 incluidos RPC SD de postgres, respetan locks PG; sus órdenes pueden causar deadlocks.
