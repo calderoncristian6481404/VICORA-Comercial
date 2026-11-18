@@ -1,3 +1,13 @@
+> Actualización posterior 18/11/2026: los dos contratos SQL ya están instalados y OFF,
+> y el operador confirmó los 26 archivos instalados en Contabo. No repetirlos, ni
+> passwords/HTTPS/TLS/VEN-000040. La configuración privada y su aceptación completa
+> siguen pendientes; no se fabrican. Esta revisión no cambia interfaz, ventas o Auth.
+> Código fiscal 028b9d372e6077ef3008ae0b196e0c17d0cf8cf7; CI 44424236973 SUCCESS,
+> 30 casos nuevos (22 configuración + 8 portabilidad), 71 regresiones y navegador.
+> Único procedimiento sin reinstalación: DOCUMENTACION_LAB/CONTABO_CONFIGURACION_UNICA.md
+> del PR11. Informe vigente: CIERRE_FINAL_VICORA_ARCA.md del repositorio fiscal.
+> No se declara el preparador operativo: servicios OFF, can_send=false/runtime_enabled=false.
+
 # Integración opcional Ticket VICORA / preparación ARCA
 
 Estado experimental, PR4 coordinado con PR11 y seguimiento fiscal #12. Sin publicación,
