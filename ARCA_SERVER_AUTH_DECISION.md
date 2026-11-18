@@ -142,7 +142,21 @@ runtime a VICORA, factory fiscal o estado de source; ningún nuevo backend admit
 Las pruebas comprueban integridad/procedencia de los 14 runtime, concordancia de
 rutas literales, publicación apagada y controles de suscripción intactos. Su PASS
 NO acredita autenticación alojada, un servidor nuevo ni integración E2E nueva.
-Resultados/commit de CI se registrarán únicamente después de su ejecución.
+Resultados verificados después de leer los logs:
+
+- Commit de revisión/tests: `5b8837bab111f46505abd1e0fb0e4c54d5e9d5e2`.
+- GitHub Actions 44213424725: **success**.
+  https://github.com/calderoncristian6481404/VICORA-Comercial/actions/runs/44213424725
+- Ubuntu24.04, job134497190810: 4 tests, 4 pass, 0 fail.
+- Windows2022, job134497191109: 4 tests, 4 pass, 0 fail.
+- Son **4 métodos estáticos / 8 ejecuciones**, no 8 métodos nuevos ni E2E.
+- Los mismos 4 métodos aprobaron localmente con Node24. CI usa Node22.
+- Se conservaron, sin repetir, las 41 pruebas fiscales previas ya aprobadas.
+  No hubo una nueva prueba PG/servidor/Auth alojado. El E2E solicitado con un
+  adaptador nuevo **no se ejecutó**: ese adaptador no existe de forma admisible.
+
+La única conclusión aprobada es la integridad del contrato revisado, NO el
+funcionamiento de la arquitectura propuesta ni la instalación de un backend.
 
 No se fabrica un ZIP nuevo. Mantener sin instalar el incremento fiscal anterior.
 Reversión: retirar sólo estos archivos de revisión mediante un commit sobre la
