@@ -115,3 +115,29 @@ La delegación owner-helper y ACL comerciales no existen aprobadas en producció
 Rendimiento bajo carga, HA, restauración coordinada y testigo independiente tampoco
 se acreditan aquí. Estas limitaciones impiden promover sólo porque el laboratorio
 apruebe. La aceptación futura debe cubrirlas con datos/contratos autorizados.
+
+## Optional fiscal profile commands (final functional scope)
+
+`origin_api.identity()` reuses the same authoritative Auth/account, business,
+role and subscription checks without requiring a sale or creating a decision.
+The source transaction retains its native locks through the private callback.
+The source client verifies JWT first and on each recheck. SQL/tenant context is
+never browser authorization. It grants neither reservation nor emission.
+
+The fiscal composition requires a separate `profile_commands_enabled=True`
+server setting; its default is closed. ProfileService requires an administrator,
+a second live session of the SAME subject/business and a recent signed password
+AMR, plus a version CAS and replay-proof history. Passwords never enter this
+server. Profile updates remain drafts requiring separately reviewed tax facts.
+
+The private profile commit happens while source revocation locks are held. A
+lost response after that commit is ambiguous, resolved by rereading the profile
+or an exact idempotent retry. There is no distributed rollback guarantee. A
+bounded pool/lock timeout fails closed; two source connections may be needed for
+password reauthentication. Exhaustion can reduce availability, not grant access.
+
+This remains an isolated proof of a delegation. It does NOT establish that the
+managed Auth owner can or should grant this capability in production. The
+reported `auth.sessions.refreshed_at` is timestamp WITHOUT time zone; there is
+no claimed `last_refreshed_at` column. Inactivity/single-session semantics need
+actual provider acceptance. No global replication/synchronization is introduced.

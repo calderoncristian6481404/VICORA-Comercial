@@ -2,7 +2,7 @@ name: Commercial source authority contract review
 on:
   push:
     branches: [codex/api-fiscal-integrada]
-    paths: ['ARCA_SOURCE_INVENTORY.json','tests/server-authority-contract.test.cjs','.github/workflows/commercial-authority-contract.yml']
+    paths: ['ventas.js','tests/optional-receipts.test.cjs','ARCA_SOURCE_INVENTORY.json','tests/server-authority-contract.test.cjs','.github/workflows/commercial-authority-contract.yml']
 permissions:
   contents: read
 jobs:
@@ -21,3 +21,4 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/server-authority-contract.test.cjs
+      - run: node tests/optional-receipts.test.cjs

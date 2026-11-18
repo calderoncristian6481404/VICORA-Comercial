@@ -77,6 +77,44 @@ $f$;
 ALTER FUNCTION origin_private.receipt(uuid) OWNER TO origin_command_owner;
 REVOKE ALL ON FUNCTION origin_private.receipt(uuid) FROM PUBLIC;
 
+-- Identity-only fence for private profiles/documents. No sale, outbox or R100 write.
+CREATE FUNCTION origin_api.identity() RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog SET TimeZone='UTC' AS $f$
+DECLARE claims jsonb;subject_id uuid;session_id uuid;expires bigint;member record;subrow record;today date;
+BEGIN
+ IF session_user<>'origin_gateway_lab' OR current_database() !~ '^r131_[0-9a-f]{24}$'
+ OR inet_server_addr() IS NOT NULL OR current_setting('listen_addresses')<>''
+ THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_LAB_CALLER_REQUIRED'; END IF;
+ BEGIN
+  claims:=current_setting('request.jwt.claims',true)::jsonb;
+  subject_id:=(claims->>'sub')::uuid;session_id:=(claims->>'session_id')::uuid;expires:=(claims->>'exp')::bigint;
+  IF subject_id IS NULL OR session_id IS NULL OR expires IS NULL THEN RAISE EXCEPTION 'MISSING'; END IF;
+ EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_CONTEXT_REJECTED'; END;
+ -- The SQL login is a TRUSTED GATEWAY, not a browser login. It can set context;
+ -- its Python adapter MUST verify JWT first. GUC itself proves no identity.
+ PERFORM origin_private.auth_fence(subject_id,session_id);
+ LOCK TABLE public.usuarios,public.suscripciones IN SHARE MODE;
+ SELECT count(*) AS n INTO member FROM public.usuarios WHERE auth_user_id=subject_id;
+ IF member.n<>1 THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_MEMBERSHIP_AMBIGUOUS'; END IF;
+ SELECT * INTO STRICT member FROM public.usuarios WHERE auth_user_id=subject_id FOR SHARE;
+ IF member.estado IS DISTINCT FROM 'ACTIVO' OR member.rol IS NULL OR member.rol NOT IN('ADMINISTRADOR','VENDEDOR') OR length(member.id_negocio) NOT BETWEEN 1 AND 128 OR member.id_negocio ~ '[[:cntrl:]]'
+ THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_MEMBER_REJECTED'; END IF;
+ PERFORM 1 FROM public.negocios WHERE id_negocio=member.id_negocio AND estado='ACTIVO' FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_BUSINESS_REJECTED'; END IF;
+ SELECT count(*) AS n INTO subrow FROM public.suscripciones WHERE id_negocio=member.id_negocio AND id_sistema='SIS-000001';
+ IF subrow.n<>1 THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_SUBSCRIPTION_AMBIGUOUS'; END IF;
+ SELECT * INTO STRICT subrow FROM public.suscripciones WHERE id_negocio=member.id_negocio AND id_sistema='SIS-000001' FOR SHARE;
+ today:=(clock_timestamp() AT TIME ZONE 'America/Argentina/Buenos_Aires')::date;
+ IF COALESCE(((subrow.estado='ACTIVA' AND subrow.proximo_vencimiento>=today) OR (subrow.estado='PRUEBA' AND subrow.fecha_fin_prueba>=today)),false) IS NOT TRUE
+ OR (CASE WHEN subrow.estado='PRUEBA' THEN subrow.fecha_fin_prueba ELSE subrow.proximo_vencimiento END) IS NULL
+ THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_SUBSCRIPTION_REJECTED'; END IF;
+ IF expires<=extract(epoch FROM clock_timestamp()) OR expires>extract(epoch FROM clock_timestamp())+3605
+ THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_TOKEN_EXPIRED'; END IF;
+ RETURN jsonb_build_object('subject',subject_id,'session',session_id,'business',member.id_negocio,'role',member.rol);
+END $f$;
+ALTER FUNCTION origin_api.identity() OWNER TO origin_command_owner;
+REVOKE ALL ON FUNCTION origin_api.identity() FROM PUBLIC;
+
 CREATE FUNCTION origin_api.prepare(p_sale text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog SET TimeZone='UTC' AS $f$
 DECLARE claims jsonb;subject_id uuid;session_id uuid;expires bigint;member record;subrow record;
@@ -191,7 +229,7 @@ ALTER FUNCTION origin_api.pending() OWNER TO origin_command_owner;
 ALTER FUNCTION origin_api.ack(uuid,uuid,text) OWNER TO origin_command_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA origin_api FROM PUBLIC;
 GRANT USAGE ON SCHEMA origin_api TO origin_gateway_lab,origin_materializer_lab;
-GRANT EXECUTE ON FUNCTION origin_api.prepare(text) TO origin_gateway_lab;
+GRANT EXECUTE ON FUNCTION origin_api.prepare(text),origin_api.identity() TO origin_gateway_lab;
 GRANT EXECUTE ON FUNCTION origin_api.load(uuid),origin_api.pending(),origin_api.ack(uuid,uuid,text) TO origin_materializer_lab;
 
 COMMIT;

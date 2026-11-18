@@ -230,7 +230,7 @@ function venImprimir80(v,det,cob){
   .total{font-size:16px;font-weight:bold}.estado{font-size:16px;font-weight:bold;text-align:center;margin:8px 0}
   @media screen{body{margin:12px auto;border:1px solid #ddd}.ayuda{font:12px Arial;margin:8px auto;text-align:center}}
   @media print{html,body{width:${ancho}mm!important;min-height:0!important}.ayuda{display:none!important}}
-  </style></head><body><div class="ticket"><h1>${esc(negocio?.nombre||'VICORA')}</h1><div class="centro">Comprobante de venta</div>
+  </style></head><body><div class="ticket"><h1>${esc(negocio?.nombre||'VICORA')}</h1><div class="centro">Ticket VICORA · NO FISCAL</div><div class="centro">No válido como factura fiscal</div>
   <div class="linea"></div><div>Venta: ${esc(v.id_venta)}</div><div>Fecha: ${esc(venFecha(v.fecha_venta))}</div>
   <div>Cliente: ${esc(v.cliente||'Consumidor final')}</div><div class="linea"></div>
   <table><tbody>${detalle}</tbody></table><div class="linea"></div>

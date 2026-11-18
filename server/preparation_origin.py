@@ -50,6 +50,35 @@ class OriginClient:
    return result,copy.deepcopy(actor)
   except OriginRejected:raise
   except Exception:raise OriginRejected('ORIGIN_COMMAND_REJECTED_OR_UNCERTAIN') from None
+ def claims(self,token):
+  if self.enabled is not True or not callable(self.verify_token):raise OriginRejected('ORIGIN_DISABLED')
+  return self.verify_token(token)
+ def identity(self,token,consumer):
+  """Keep native source locks through the private callback. No browser tenant.
+  Profile commit precedes release of this fence; an ambiguous final reply is
+  resolved using the existing profile version/proof, never a blind overwrite.
+  """
+  claims=self.claims(token)
+  try:
+   context={k:claims[k] for k in ('sub','session_id','exp')}
+   for k in ('sub','session_id'):
+    if str(uuid.UUID(context[k]))!=context[k]:raise ValueError()
+   if type(context['exp']) is not int or not callable(consumer):raise ValueError()
+   with self.gateway.connection() as c,c.transaction():
+    self._guard(c,'origin_gateway_lab')
+    c.execute("SET LOCAL statement_timeout='3s'");c.execute("SET LOCAL lock_timeout='800ms'")
+    c.execute("SELECT set_config('request.jwt.claims',%s,true)",(json.dumps(context,separators=(',',':')),))
+    def actor():
+     a=c.execute('SELECT origin_api.identity()').fetchone()[0]
+     if set(a)!={'subject','session','business','role'} or a['subject']!=context['sub'] or a['session']!=context['session_id'] or a['role'] not in ('ADMINISTRADOR','VENDEDOR'):raise OriginRejected('ORIGIN_ACTOR_REJECTED')
+     return a
+    original=actor()
+    def recheck():
+     if self.claims(token)!=claims or actor()!=original:raise OriginRejected('ORIGIN_IDENTITY_CHANGED')
+    recheck();value=consumer(copy.deepcopy(original),recheck);recheck()
+   return value
+  except OriginRejected:raise
+  except Exception:raise OriginRejected('ORIGIN_IDENTITY_REJECTED_OR_UNCERTAIN') from None
  def _materialize_call(self,sql,args=None):
   if self.enabled is not True:raise OriginRejected('ORIGIN_DISABLED')
   try:

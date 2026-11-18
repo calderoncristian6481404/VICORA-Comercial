@@ -159,7 +159,7 @@
       "sha256": "e134d2bf9ab3e4d48c53d283c3075fe36cde8c89871ea589c053e87d090f575c"
     },
     "ventas.js": {
-      "git_blob_sha1": "e5e1cd5b132a42c38aad571c16de684dd91d4f05",
+      "git_blob_sha1": "5b7e50dc76698dbe12877cfe739af2d69f4eaf29",
       "routes": {
         "auth": [],
         "rpc": [
@@ -173,7 +173,7 @@
           "ventas_detalle:insert"
         ]
       },
-      "sha256": "54b176bec1c80523bf6eb99183b6437e29d35dc6b784b3184ff8acfc47672dc0"
+      "sha256": "a9f9db2710f22285e49772ff64bd9d3eadb0df50749259478322766a3c3c9d7c"
     }
   },
   "fiscal_code": "d54804282a311c72cf6f8a314482ca062c060aca",
@@ -188,5 +188,8 @@
   "subscription_guards": {
     "DB/MIGRACIONES/20261112_guardia_suscripcion_escrituras.sql": "8266d64d01bfe30da86c060ee62f5ce9faa60148852036360b9fd82329c5b09a",
     "solo_lectura.js": "e134d2bf9ab3e4d48c53d283c3075fe36cde8c89871ea589c053e87d090f575c"
+  },
+  "reviewed_changes": {
+    "ventas.js": "Only explicit nonfiscal label in ordinary ticket; commercial writes unchanged."
   }
 }
