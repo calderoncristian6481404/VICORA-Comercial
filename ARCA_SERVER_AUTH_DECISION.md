@@ -1,3 +1,16 @@
+# Actualización autorizada: implementación aislada en curso
+
+La orden 6966494776 autoriza probar la frontera descrita abajo. El adaptador está
+en `server/preparation_origin.py`; la delegación hipotética en
+`server/lab/origin_schema.sql` y sus riesgos/ACL en `server/ORIGIN_THREAT_MODEL.md`.
+El PR #11 materializa decisiones durables del origen. No se declara aceptación
+alojada ni se habilitan servicios. Los resultados nuevos se registrarán tras CI.
+
+El documento anterior se conserva como antecedente de la decisión; su estado
+"adaptador no implementado" describe la revisión previa, no este código nuevo.
+
+---
+
 # Revisión final PR #4 / PR #11 — decisión sobre el adaptador servidor
 
 **Estado: INTEGRACIÓN ALOJADA NO COMPLETADA. ADAPTADOR AUTORITATIVO NO ADMITIDO.**

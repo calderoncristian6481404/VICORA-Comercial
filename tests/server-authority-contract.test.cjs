@@ -23,13 +23,14 @@ test('literal routes and RPC calls match the actual inspected files',()=>{
  assert(inventory.files['index.html'].routes.auth.includes('signOut'));
  assert(inventory.files['arca.js'].routes.auth.includes('signInWithPassword'));
 });
-test('publication remains disabled; the contract does not claim an implemented admitted backend',()=>{
+test('publication remains disabled; lab backend is not a hosted approval',()=>{
  const context={window:{}};vm.runInNewContext(text('arca.config.js'),context);
  assert.equal(context.window.VICORA_ARCA_CONFIG.enabled,false);
  assert.equal(context.window.VICORA_ARCA_CONFIG.apiOrigin,'');
  assert.equal(inventory.managed_auth_writer_participation_verified,false);
  assert.equal(inventory.hosted_adapter_admitted,false);
- assert.equal(inventory.server_adapter_implemented,false);
+ assert.equal(inventory.server_adapter_implemented,true);
+ assert.equal(inventory.server_protocol,'SOURCE_COMMITTED_PREPARATION_LAB_V1');
  assert.equal(inventory.can_send,false);assert.equal(inventory.runtime_enabled,false);
 });
 test('existing subscription enforcement remains byte-identical',()=>{

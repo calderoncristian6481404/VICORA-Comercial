@@ -183,7 +183,8 @@
   "runtime_enabled": false,
   "schema": "vicora-commercial-authority-review-v1",
   "scope": "LITERAL_STATIC_CALLS_NOT_COMPLETE_SQL_OR_HOSTED_AUDIT",
-  "server_adapter_implemented": false,
+  "server_adapter_implemented": true,
+  "server_protocol": "SOURCE_COMMITTED_PREPARATION_LAB_V1",
   "subscription_guards": {
     "DB/MIGRACIONES/20261112_guardia_suscripcion_escrituras.sql": "8266d64d01bfe30da86c060ee62f5ce9faa60148852036360b9fd82329c5b09a",
     "solo_lectura.js": "e134d2bf9ab3e4d48c53d283c3075fe36cde8c89871ea589c053e87d090f575c"
