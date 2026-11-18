@@ -1,6 +1,12 @@
-# Candidata de origen comercial gestionado — REVISIÓN, NO APLICADA
+# Contrato de origen comercial gestionado — instalado, desactivado
 
-Orden PR4 #6976659412. Reutiliza el helper probado en Supabase LAB y las validaciones
+Estado vigente: instalación autorizada del 18/11/2026 comprobada mediante metadatos
+en transacción READ ONLY. Ver `PRODUCTION_DISABLED_INSTALL_20261118.md`. Las tres
+migraciones NO deben repetirse. Control apagado, cero decisiones, 23 triggers
+habilitados. Los dos roles son LOGIN sin contraseña: todavía no se probaron sus
+conexiones, sesiones comerciales ni el servidor Contabo.
+
+Diseño original de la orden PR4 #6976659412. Reutiliza el helper probado en Supabase LAB y las validaciones
 comerciales/outbox del protocolo anterior. No reinstala los dos esquemas LAB.
 El código alojado que ya existe sigue siendo evidencia de viabilidad; sus seis
 relaciones sintéticas NO se usan como si fueran las tablas de VICORA Comercial.
@@ -23,7 +29,8 @@ materializador; preparación/identidad sólo gateway. Nunca numeración, CAE o e
 
 La credencial del gateway debe ser vicora_origin_gateway, y la del materializador
 vicora_origin_materializer, LOGIN sin SUPERUSER/BYPASSRLS/INHERIT/membresías ni derechos
-sobre tablas/RPC ajenas. Roles y credenciales se aprovisionan aparte tras autorización.
+sobre tablas/RPC ajenas. Los roles ya existen; sólo faltan credenciales distintas por canal privado autorizado.
+No ejecutar nuevamente roles.review.sql.
 `roles.review.sql` crea únicamente grupos NOLOGIN; no genera ni guarda passwords.
 No hay permisos para anon/authenticated/service_role ni EXECUTE PUBLIC.
 
@@ -40,7 +47,7 @@ su login a la app. Cuerpos cerrados, firmas UUID/bigint/text, nombres calificado
 search_path=pg_catalog, revocación PUBLIC en la misma transacción y schemas privados.
 El helper sólo devuelve sesión viva; no es autenticación JWT ni autorización fiscal.
 La función receipt es invoker, interna; los ocho otros entrypoints/helpers son SD.
-La revisión debe aprobar esta excepción y su pin antes de instalación. RLS FORCE
+La excepción y los grants ya fueron aprobados en la instalación registrada. RLS FORCE
 no protege las decisiones frente al propio postgres/admin; hash no equivale a firma
 independiente ni prueba contra restauración coordinada. R181 no se modifica.
 
@@ -77,24 +84,25 @@ ACK perdido se recupera; ACK contradictorio, target perdido tras ACK o UNKNOWN b
 Perfiles usan la misma identidad bloqueada, segundo password AMR y sesión vigente,
 CAS/replay del almacén privado existente. Nunca se almacenan certificados o claves.
 
-## Instalación y reversión, todavía SIN AUTORIZAR
+## Continuación sin reinstalar
 
-1. DBA verifica proyecto/host/TLS reales y checksum; revisa propietarios, PUBLIC,
-   RLS, columnas, triggers y recursos con preflight (sólo catálogos). No ejecutar
-   consultas comerciales ni ampliar permisos para que pase una guardia.
-2. Revisar/aprobar roles y excepción SD; credenciales mediante canal privado.
-   La variable de revisión GUC es guardia contra error del operador, NO identidad
-   del proyecto ni autorización de un navegador. NO ejecutar estos SQL por esta orden.
-3. Tras aprobación independiente, ejecutar la candidata transaccional y verificar
-   que control.enabled=false. No tocar los esquemas LAB instalados ni R100.
-4. Aceptar fuente/GoTrue/escritores/ACL/TLS con datos de prueba autorizados; sólo entonces
-   habilitar preparación en el control nuevo, sin cambiar can_send/runtime_enabled.
-5. La factory privada del PR11 exige aprobación expirable/pineada, JWKS comercial,
-   dos credenciales de origen, CA, registry de emisores y proxy/socket aceptados.
-   No reutiliza el JWT comercial como si perteneciera a LAB.
+1. Verificar proyecto exacto y TLS antes de inspeccionar. `installed_readback.sql`
+   es exclusivamente de catálogos/estado agregado, con READ ONLY y ROLLBACK; no
+   prueba la autenticación de los trabajadores ni lee ventas/usuarios.
+2. NO repetir source_contract.sql, roles.review.sql ni la corrección PUBLIC.
+   Las tres migraciones ya se aplicaron; no volver a abrir los grants corregidos.
+3. Aprovisionar las dos contraseñas mediante canal privado y almacén seguro en el
+   servidor. Nunca usar postgres/service_role como identidad del preparador.
+4. Usar el incremento final del PR11 y su inspección de ambos logins con el control
+   apagado. Esa inspección ejecuta admission() con bloqueo compartido: no es una
+   transacción READ ONLY, pero no realiza DML ni llama procedimientos comerciales.
+5. La habilitación temporal de preparación y las pruebas con datos de ensayo reales
+   necesitan aprobación aparte. No implica reservar R100, emitir o iniciar servicios.
+   La factory conserva aprobación expirable y cinco puertos reales; nunca reutiliza
+   el JWT comercial como si fuera de LAB.
 
-Rollback.sql deshabilita y revoca acceso sólo a la nueva API. Conserva decisiones,
-ACKs, snapshots, roles, datos e historial; no contiene DROP/DELETE/TRUNCATE. Un rollback
-no permite reemitir ni reiniciar secuencias. No se expone ningún botón de activación.
-No se prepara un ZIP instalable para Contabo hasta aprobar el contrato/ACL real;
-el manifiesto de release previo no se cambia para disfrazar esa admisión pendiente.
+[Guía única de conexión, instalación incremental y reversión](https://github.com/calderoncristian6481404/VICORA-ARCA-Experimental/blob/codex/api-fiscal-integrada/DOCUMENTACION_LAB/CONTABO_FINAL_CONEXION_DESACTIVADA.md).
+El ZIP es sólo código; no instala SQL ni activa nada. El rollback del código conserva
+perfiles/CA/credenciales y servicios apagados. rollback.sql queda como procedimiento
+histórico de deshabilitación/revocación de la API, para autorización expresa; no se
+necesita ejecutarlo ahora. Conserva decisiones y ACKs y nunca permite reemitir.

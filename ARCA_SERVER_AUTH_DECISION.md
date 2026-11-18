@@ -1,16 +1,21 @@
 # Cierre vigente de integración gestionada — PR4 + PR11
 
-Orden PR4 #6976659412 implementada en candidata SQL/cliente/composición. Se reutiliza
-la evidencia managed Auth real del LAB, sin repetir sus instalaciones ni LAB14.
-[Informe único](https://github.com/calderoncristian6481404/VICORA-ARCA-Experimental/blob/codex/api-fiscal-integrada/CIERRE_FINAL_VICORA_ARCA.md).
+La instalación de origen en VICORA ADMIN del 18/11/2026 ya está realizada y se
+verificó por metadatos READ ONLY: control apagado, cero decisiones, 23 triggers
+habilitados, dos roles LOGIN restringidos sin contraseña y sin permisos directos.
+Las tres correcciones PUBLIC están aplicadas. NO repetir migraciones ni grants.
+Ver server/candidate/PRODUCTION_DISABLED_INSTALL_20261118.md.
 
-Código comercial aa525cd3a089077b5a908299b331b6a85df88f75; fiscal
-f50e90d17eb04fe1d958cd7c27dc782ad59468ec. 39 pruebas finales aprobadas (13 métodos
-nuevos, 26 regresiones); no se suman las 95 anteriores. SQL sobre columnas reales,
-roles separados, outbox/load/pending/ACK, perfiles y binding de preparación existentes.
-server/candidate contiene migración, roles, preflight, rollback y amenaza SD/owner.
+Se conservan el cliente comercial aa525cd3 y los contratos originales sin cambios.
+El PR11 añade conexión a ambos roles, credenciales cifradas mediante systemd,
+inspección TLS/ACL con preparación apagada, aceptación privada de casos autorizados
+y un único incremento reproducible con instalación/reversión temporal probadas.
+No acredita credenciales, sesiones o materialización reales en Contabo.
 
-La excepción SD postgres y ACL efectiva necesitan aprobación; no usar su login en
-servidor ni aplicar fixtures a producción. No está conectado VICORA real ni arrancado
-Contabo. Ticket simple sigue opcional e independiente; cada comercio es su emisor.
-can_send=false y runtime_enabled=false. No se emite, reserva ni modifica producción.
+[Informe único y evidencias actuales](https://github.com/calderoncristian6481404/VICORA-ARCA-Experimental/blob/codex/api-fiscal-integrada/CIERRE_FINAL_VICORA_ARCA.md).
+[Guía de instalación y reversión](https://github.com/calderoncristian6481404/VICORA-ARCA-Experimental/blob/codex/api-fiscal-integrada/DOCUMENTACION_LAB/CONTABO_FINAL_CONEXION_DESACTIVADA.md).
+
+Ticket interno NO FISCAL y factura opcional por venta se conservan; no hay nuevos
+movimientos de venta, stock, caja o cobros. Cada comercio utiliza su propia identidad
+fiscal. can_send=false, runtime_enabled=false. No se reserva ni emite; no se ha
+fusionado, desplegado ni modificado producción durante esta intervención.
