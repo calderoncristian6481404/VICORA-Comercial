@@ -10,11 +10,12 @@ function routes(s){return {
  writes:[...new Set([...s.matchAll(/\.from\(\s*['"]([^'"]+)['"]\s*\)\s*\.\s*(insert|update|delete|upsert)\s*\(/g)].map(x=>x[1]+':'+x[2]))].sort(),
  auth:[...new Set([...s.matchAll(/\.auth\.(\w+)\s*\(/g)].map(x=>x[1]))].sort()
 };}
-test('inventory identifies the reviewed runtime sources without changing them',()=>{
+test('inventory retains baseline and pins explicit reviewed optional-fiscal revisions',()=>{
  assert.equal(inventory.commercial_commit,'161c44d34da687587f454a1cd8d1dd9c8ae4a802');
  const files=fs.readdirSync(root).filter(n=>n.endsWith('.js')||n==='index.html').sort();
  assert.deepEqual(files,Object.keys(inventory.files).sort());
- for(const [name,proof] of Object.entries(inventory.files))assert.equal(sha(fs.readFileSync(path.join(root,name))),proof.sha256,name);
+ const revisions=inventory.reviewed_revisions||{};assert.deepEqual(Object.keys(revisions).sort(),['arca.js','ventas.js']);
+ for(const [name,proof] of Object.entries(inventory.files)){const revision=revisions[name];if(revision){assert.equal(revision.baseline_sha256,proof.sha256);assert.equal(revision.code_commit,'ec91f27a1de0b8fd6fd554c8c8dd30c9254235ee');}assert.equal(sha(fs.readFileSync(path.join(root,name))),revision?revision.sha256:proof.sha256,name);}
 });
 test('literal routes and RPC calls match the actual inspected files',()=>{
  for(const [name,proof] of Object.entries(inventory.files))assert.deepEqual(routes(text(name)),proof.routes,name);
