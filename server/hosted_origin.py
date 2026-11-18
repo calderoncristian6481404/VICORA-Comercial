@@ -40,8 +40,8 @@ class HostedOriginClient(OriginClient):
   claims,values=self._context(token)
   try:
    with self.gateway.connection() as c,c.transaction():
-    self._guard(c,'origin_gateway_lab')
     c.execute("SET LOCAL statement_timeout='3s'");c.execute("SET LOCAL lock_timeout='800ms'")
+    self._guard(c,'origin_gateway_lab')
     value=c.execute('SELECT vicora_origin_api.prepare(%s,%s,%s,%s)',(*values,sale_ref)).fetchone()[0]
     result=receipt(value['decision']);actor=self._actor(value['actor'],values)
     if actor['business']!=result['business'] or self.claims(token)!=claims:raise OriginRejected('ORIGIN_ACTOR_REJECTED')
@@ -55,8 +55,8 @@ class HostedOriginClient(OriginClient):
   try:
    if not callable(consumer):raise ValueError()
    with self.gateway.connection() as c,c.transaction():
-    self._guard(c,'origin_gateway_lab')
     c.execute("SET LOCAL statement_timeout='3s'");c.execute("SET LOCAL lock_timeout='800ms'")
+    self._guard(c,'origin_gateway_lab')
     def actor():return self._actor(c.execute('SELECT vicora_origin_api.identity(%s,%s,%s)',values).fetchone()[0],values)
     original=actor()
     def recheck():
@@ -72,6 +72,7 @@ class HostedOriginClient(OriginClient):
   if sql not in queries or self.enabled is not True:raise OriginRejected('ORIGIN_RECOVERY_REJECTED')
   try:
    with self.materializer.connection() as c,c.transaction():
-    self._guard(c,'origin_materializer_lab');c.execute("SET LOCAL statement_timeout='3s'")
+    c.execute("SET LOCAL statement_timeout='3s'");c.execute("SET LOCAL lock_timeout='800ms'")
+    self._guard(c,'origin_materializer_lab')
     return c.execute(queries[sql],args).fetchall()
   except Exception:raise OriginRejected('ORIGIN_RECOVERY_REJECTED_OR_UNCERTAIN') from None
