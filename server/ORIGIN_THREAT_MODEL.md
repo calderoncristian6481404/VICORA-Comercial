@@ -101,3 +101,15 @@ No se habilita arca.config.js/can_send/runtime_enabled ni se crea paquete Contab
 Reversión LAB: parar el test y destruir su contenedor. Reversión futura alojada:
 revocar sólo EXECUTE de los nuevos endpoints y apagar el componente; conservar
 outbox/intents/evidencia, sin borrar operaciones ni tocar R100 o tablas comerciales.
+
+## Garantías deliberadamente no acreditadas
+
+Las tablas Auth/negocio del experimento son estructuras ficticias de las columnas
+conocidas, no el servicio GoTrue alojado ni todos sus triggers. Deben verificarse
+not_after, last_refreshed_at, timebox/inactividad/single-session/reuse, borrado de
+sesiones y rotación/revocación de signing keys de la configuración real. No se
+presupone su algoritmo ni que existencia de sesión equivalga a toda política Auth.
+La delegación owner-helper y ACL comerciales no existen aprobadas en producción.
+Rendimiento bajo carga, HA, restauración coordinada y testigo independiente tampoco
+se acreditan aquí. Estas limitaciones impiden promover sólo porque el laboratorio
+apruebe. La aceptación futura debe cubrirlas con datos/contratos autorizados.

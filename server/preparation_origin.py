@@ -13,7 +13,10 @@ def receipt(value):
   if value['state'] not in ('ACCEPTED','MATERIALIZED'):raise ValueError()
   data=json.loads(value['payload_text'])
   if set(data)!={'commercial','authorizer'} or data['commercial']['header']['id_negocio']!=value['business'] or data['commercial']['header']['id_venta']!=value['sale']:raise ValueError()
-  if value['state']=='MATERIALIZED':uuid.UUID(value['target_operation'])
+  if value['state']=='MATERIALIZED':
+   if str(uuid.UUID(value['target_operation']))!=value['target_operation'] or not uuid.UUID(value['target_operation']).int:raise ValueError()
+   if type(value['target_hash']) is not str or len(value['target_hash'])!=64 or any(c not in '0123456789abcdef' for c in value['target_hash']):raise ValueError()
+  elif value['target_operation'] is not None or value['target_hash'] is not None:raise ValueError()
   return copy.deepcopy(value)
  except Exception:raise OriginRejected('ORIGIN_RECEIPT_REJECTED') from None
 

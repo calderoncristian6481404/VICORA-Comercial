@@ -47,7 +47,7 @@ CREATE TABLE origin_private.decisions(
  state text NOT NULL DEFAULT 'ACCEPTED' CHECK(state IN('ACCEPTED','MATERIALIZED')),
  target_operation uuid,target_hash text,created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  UNIQUE(business,sale),CHECK((state='ACCEPTED' AND target_operation IS NULL AND target_hash IS NULL) OR
- (state='MATERIALIZED' AND target_operation IS NOT NULL AND target_hash ~ '^[0-9a-f]{64}$')));
+ (state='MATERIALIZED' AND target_operation IS NOT NULL AND target_hash IS NOT NULL AND target_hash ~ '^[0-9a-f]{64}$')));
 ALTER TABLE origin_private.decisions OWNER TO origin_command_owner;
 ALTER TABLE origin_private.decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE origin_private.decisions FORCE ROW LEVEL SECURITY;
@@ -144,6 +144,8 @@ BEGIN
  SELECT * INTO oldrow FROM origin_private.decisions WHERE business=member.id_negocio AND sale=p_sale FOR UPDATE;
  IF FOUND THEN
   IF oldrow.payload->'commercial' IS DISTINCT FROM body THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_DECISION_CONFLICT'; END IF;
+  PERFORM origin_private.auth_fence(subject_id,session_id);
+  IF expires<=extract(epoch FROM clock_timestamp()) THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_TOKEN_EXPIRED'; END IF;
   RETURN jsonb_build_object('decision',origin_private.receipt(oldrow.id),'actor',actor);
  END IF;
  body:=jsonb_build_object('commercial',body,'authorizer',actor);
@@ -155,6 +157,8 @@ BEGIN
   IF oldrow.payload->'commercial' IS DISTINCT FROM body->'commercial' THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_DECISION_CONFLICT'; END IF;
   newid:=oldrow.id;
  END IF;
+ PERFORM origin_private.auth_fence(subject_id,session_id);
+ IF expires<=extract(epoch FROM clock_timestamp()) THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='ORIGIN_TOKEN_EXPIRED'; END IF;
  RETURN jsonb_build_object('decision',origin_private.receipt(newid),'actor',actor);
 END $f$;
 ALTER FUNCTION origin_api.prepare(text) OWNER TO origin_command_owner;
