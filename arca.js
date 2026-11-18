@@ -32,6 +32,17 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
       }).finally(()=>inflight.delete(key));
       inflight.set(key,promise);return promise;
     },
+    async capabilities(){
+      const value=await request('capabilities','GET',null,(await session()).access_token);
+      if(typeof value.preparation_enabled!=='boolean'||typeof value.configuration_enabled!=='boolean'||!Array.isArray(value.document_types)||value.document_types.some(k=>![1,3,6,8,11,13].includes(k)))throw new Error('Habilitación fiscal no verificable.');
+      return value;
+    },
+    async status(body){
+      if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Referencia de venta inválida.');
+      const value=await request('status','POST',{saleRef:body.saleRef},(await session()).access_token);
+      if(!['NO_DISPONIBLE','PREPARADO_NO_EMITIDO','RESULTADO_INCIERTO','BLOQUEADO'].includes(value.status))throw new Error('Estado fiscal no verificable.');
+      return value;
+    },
     async profile(){return request('config','GET',null,(await session()).access_token);},
     async saveProfile(profile,reauthenticate){
       const s=await session(),fresh=await reauthenticate();
@@ -45,19 +56,33 @@ function dialog(title){
   const d=node('dialog');d.style.cssText='width:min(520px,90vw);max-height:90vh;overflow:auto;border:0;border-radius:14px;padding:24px';
   d.append(node('h2',title));const close=node('button','Cerrar');close.type='button';close.onclick=()=>d.close();d.addEventListener('close',()=>d.remove());document.body.append(d);return {d,close};
 }
-root.vicoraArcaInstalar=function({db,createAuthClient,role}){
+root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
   root.VICORA_ARCA_UI_HABILITADA=false;
   const button=document.getElementById('vicoraArcaConfiguracion');if(button)button.hidden=true;
   const config=root.VICORA_ARCA_CONFIG;
   if(config?.enabled!==true)return;
   let api;try{api=client({db,apiOrigin:config.apiOrigin});}catch(_){return;}
+  async function refresh(){
+    root.VICORA_ARCA_UI_HABILITADA=false;
+    const capability=await api.capabilities();
+    root.VICORA_ARCA_UI_HABILITADA=capability.preparation_enabled===true;
+    return capability;
+  }
+  root.vicoraArcaRefrescarDisponibilidad=refresh;
   root.vicoraArcaIniciarEmision=async body=>{
+    const capability=await refresh();
+    if(capability.preparation_enabled!==true)throw new Error('El comercio no tiene preparación fiscal habilitada. El ticket común sigue disponible.');
     const value=await api.prepare(body),view=dialog('Factura preparada, no emitida');
     view.d.append(node('p','Tipo '+({1:'A',6:'B',11:'C'}[value.document_type])+'. La venta ya está registrada. No se reservó numeración ni se envió a ARCA.'));
     view.d.append(node('p','No hay CAE verificado: no se habilitan PDF, QR ni impresión fiscal.'),view.close);view.d.showModal();return value;
   };
-  root.VICORA_ARCA_UI_HABILITADA=true;
-  if(button&&role==='ADMINISTRADOR'){
+  root.vicoraArcaConsultarEstado=async body=>{
+    const value=await api.status(body),view=dialog('Estado de preparación fiscal');
+    const labels={NO_DISPONIBLE:'No hay una preparación disponible.',PREPARADO_NO_EMITIDO:'Preparada, sin emisión ni CAE.',RESULTADO_INCIERTO:'Resultado incierto. No reenviar; requiere conciliación.',BLOQUEADO:'Operación bloqueada. Requiere revisión.'};
+    view.d.append(node('p',labels[value.status]),node('p','El ticket VICORA continúa siendo no fiscal.'),view.close);view.d.showModal();return value;
+  };
+  let capability;try{capability=await refresh();}catch(_){return;}
+  if(button&&role==='ADMINISTRADOR'&&capability.configuration_enabled===true){
     button.hidden=false;button.onclick=async()=>{
       const view=dialog('Configuración · Facturación electrónica');
       view.d.append(node('p','Opcional por comercio. Usá la identidad fiscal propia del comercio. Guardar no habilita emisión ni valida representación.'));
@@ -91,7 +116,7 @@ root.vicoraArcaInstalar=function({db,createAuthClient,role}){
               // Never signOut globally: that could revoke the main VICORA session.
               return response.data.session.access_token;
             });
-            profile.version=result.profile.version;message.textContent='Solicitud guardada. Pendiente de verificación fiscal; emisión deshabilitada.';
+            profile.version=result.profile.version;try{await refresh();}catch(_){root.VICORA_ARCA_UI_HABILITADA=false;}message.textContent='Solicitud guardada. Pendiente de verificación fiscal; emisión deshabilitada.';
           }catch(_){message.textContent='No se pudo confirmar el cambio. Consultá la configuración antes de reintentar y revisá la contraseña y los permisos.';}
           finally{password.value='';save.disabled=false;}
         };

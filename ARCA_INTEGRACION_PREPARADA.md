@@ -1,32 +1,51 @@
-# Integración fiscal opcional preparada
+# Integración opcional Ticket VICORA / preparación ARCA
 
-Continuación del PR #3 (dfcc956), sin despliegue ni modificación productiva.
-La API correspondiente está en VICORA-ARCA-Experimental, PR derivado de #10.
+Estado experimental, PR4 coordinado con PR11 y seguimiento fiscal #12. Sin publicación,
+merge, envío fiscal o cambios de módulos comerciales productivos.
 
-- arca.config.js está apagado por defecto; el usuario no elige empresa, CUIT o tipo
-  en una petición de preparación. Solo saleRef y JWT de su sesión VICORA.
-- Configuración sensible pide contraseña VICORA existente mediante cliente Auth
-  en memoria, sin cambiar la sesión principal. Backend valida admin, AMR password
-  reciente, membresía y sesión. No hay contraseña fiscal nueva.
-- Guardar CUIT/punto/condición propios solicita verificación: no activa emisión ni
-  convierte lo declarado por un administrador en evidencia fiscal auténtica.
-- Ticket común permanece disponible. El botón fiscal prepara, no reserva ni emite;
-  tipo A/B/C lo decide el backend con información verificada. No hay PDF/QR fiscal
-  para preparación o MOCK; la impresión ordinaria sigue siendo no fiscal.
-- La API no confirma ventas ni hace movimientos comerciales. Se protege la doble
-  confirmación mientras se responde al diálogo y se informa éxito aunque falle
-  la actualización de pantalla posterior a confirmar.
+Por venta confirmada se mantiene Ticket VICORA NO FISCAL, Factura ARCA o Más tarde.
+La confirmación comercial ocurre una sola vez. La opción fiscal sólo manda saleRef;
+la identidad, negocio, permisos, suscripción, emisor y tipo no se eligen en el navegador.
+Ahora la UI exige capabilities autenticadas del servidor y vuelve a comprobarlas antes
+de preparar. Un indicador JavaScript no equivale a habilitación. Consulta de estado no
+vuelve a preparar ni a confirmar ventas. UNKNOWN bloquea reenvíos.
 
-Pruebas: `node tests/arca.test.cjs` (9 métodos enfocados) en Linux/Windows.
-`tests/arca-browser.cjs` es el escenario Chromium conjunto; el servidor temporal
-sintético y las instrucciones están en CIERRE_LAB/run_local_commercial_browser.py
-/ DOCUMENTACION_LAB/API_FISCAL_Y_VENTAS.md del repositorio fiscal.
-Sin dependencia nueva del sitio publicado ni credenciales nuevas de CI.
+## Administrador: Configuración → Facturación electrónica
 
-Instalación posterior: aprobar ambos PR, puertos privados y permisos restringidos
-LAB; configurar HTTPS y origen exacto del backend; verificar Auth comercial real
-(incluido AMR password), identidad fiscal propia del comercio y binding antes de
-activar solo preparación. Cambiar arca.config.js únicamente en instalación
-experimental autorizada. Ni ese switch ni el backend habilitan envío fiscal.
-Reversión: enabled:false y retirar la ruta nueva, conservando toda la evidencia.
-No desplegado, no homologado, can_send=false y runtime_enabled=false.
+Usar la cuenta VICORA habitual. CUIT, condición, punto y representación son una solicitud
+privada, no prueba de habilitación. Guardar requiere contraseña actual mediante cliente
+Auth separado sin persistencia; no se imprime ni guarda la contraseña. El backend exige
+AMR password reciente, identidad/negocio coincidentes, permisos y sesión vivos, CAS y
+protección contra replay. Perfil pendiente no activa emisor o emisión.
+
+Los tipos permitidos, certificado protegido y representación efectiva provienen del
+registro revisado del servidor. No hay campos para claves privadas, contraseñas fiscales,
+Token o Sign. No se configura el CUIT del desarrollador como emisor de clientes.
+Para revocar preparación se deshabilita el perfil por el mismo flujo administrativo;
+la revocación de representación/certificado efectivo la ejecuta el operador fiscal por
+canal privado autorizado. No se borran decisiones ni operaciones previas.
+
+## Vendedor
+
+Registrar la venta normalmente. Ticket común nunca requiere configuración fiscal.
+Factura ARCA sólo aparece con habilitación comprobada del backend; Más tarde no realiza
+ninguna operación fiscal. Desde el detalle de una venta confirmada se puede consultar
+la preparación sin volver a registrar movimientos. Preparada NO significa emitida.
+No hay PDF, QR ni impresión fiscal para estados preparados, simulados o inciertos.
+
+## Evidencia vigente, sin repetir instalaciones
+
+Issue fiscal #12 documenta: dos logins TLS reales/credenciales cifradas instalados,
+HTTPS público de salud y renovación aprobados, JWT real ES256 y una única decisión
+ACCEPTED de VEN-000040 de VITALIA ficticia. Control apagado y helper temporal retirado.
+NO repetir esa preparación, instalar passwords o borrar esa decisión. No prueba
+materialización LAB, logout/ban/concurrencia reales ni homologación ARCA.
+VITALIA no tiene identidad fiscal: binding INACTIVO, sin CUIT/punto/certificado inventados.
+
+La nueva API de recuperación está sólo preparada en server/candidate/recovery.review.sql;
+necesita autorización de instalación separada. No altera Auth, ventas, suscripciones,
+triggers o permisos existentes. No ejecutar SQL por el hecho de aprobar pruebas.
+
+Informe único y operaciones externas:
+https://github.com/calderoncristian6481404/VICORA-ARCA-Experimental/blob/codex/api-fiscal-integrada/CIERRE_FINAL_VICORA_ARCA.md
+can_send=false; runtime_enabled=false; funcionalidad fiscal productiva apagada.

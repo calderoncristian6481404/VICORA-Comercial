@@ -2,7 +2,7 @@ name: ARCA preparation client focused
 on:
   push:
     branches: [codex/api-fiscal-integrada]
-    paths: ['arca.js','arca.config.js','ventas.js','index.html','tests/arca.test.cjs','.github/workflows/arca-preparation-focused.yml']
+    paths: ['arca.js','arca.config.js','ventas.js','index.html','tests/arca.test.cjs','tests/arca-closure.test.cjs','.github/workflows/arca-preparation-focused.yml']
 permissions:
   contents: read
 jobs:
@@ -22,3 +22,4 @@ jobs:
       - run: node --check ventas.js
       - run: node --check arca.js
       - run: node tests/arca.test.cjs
+      - run: node tests/arca-closure.test.cjs

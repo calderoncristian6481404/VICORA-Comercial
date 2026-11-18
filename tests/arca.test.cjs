@@ -50,7 +50,7 @@ test('post-confirm refresh failure preserves success, never suggests a new sale'
 test('disabled module leaves ordinary sales working and fiscal action closed',async()=>{
  const s=salesContext({fiscal:false});await s.context.venGuardar();await s.context.venEmitirFiscalDesdeVenta('SALE');assert.equal(s.counts().confirms,1);assert.equal(s.counts().fiscalCalls,0);
 });
-test('UI default off, memory-only password reauth, no fiscal credential or printable mock path',()=>{
+test('UI default off, memory-only password reauth, no fiscal credential or printable mock path',async()=>{
  const code=fs.readFileSync(require.resolve('../arca.js'),'utf8');const html=fs.readFileSync(require.resolve('../index.html'),'utf8');
  assert.ok(code.includes('root.VICORA_ARCA_UI_HABILITADA=false'));assert.ok(code.includes("password.value=''"));assert.ok(code.includes('signInWithPassword'));
  assert.ok(html.includes('persistSession:false,autoRefreshToken:false,detectSessionInUrl:false'));
@@ -58,12 +58,12 @@ test('UI default off, memory-only password reauth, no fiscal credential or print
  assert.ok(code.includes('No hay CAE verificado'));assert.ok(code.includes("role==='ADMINISTRADOR'"));
  // Verifica el rol real de public.usuarios en VICORA Comercial.
  const button={hidden:true};
- const browser={VICORA_ARCA_CONFIG:{enabled:true,apiOrigin:'https://fiscal.invalid'},fetch:async()=>{throw Error('Unexpected network');}};
+ const browser={VICORA_ARCA_CONFIG:{enabled:true,apiOrigin:'https://fiscal.invalid'},fetch:async()=>ok({preparation_enabled:false,configuration_enabled:true,document_types:[],can_send:false,runtime_enabled:false})};
  const env={window:browser,document:{getElementById:id=>id==='vicoraArcaConfiguracion'?button:null},URL,AbortController,setTimeout,clearTimeout};
  vm.createContext(env);vm.runInContext(code,env);
- browser.vicoraArcaInstalar({db,role:'ADMINISTRADOR',createAuthClient:()=>({})});
+ await browser.vicoraArcaInstalar({db,role:'ADMINISTRADOR',createAuthClient:()=>({})});
  assert.equal(button.hidden,false);
  assert.equal(typeof button.onclick,'function');
- browser.vicoraArcaInstalar({db,role:'VENDEDOR',createAuthClient:()=>({})});
+ await browser.vicoraArcaInstalar({db,role:'VENDEDOR',createAuthClient:()=>({})});
  assert.equal(button.hidden,true);
 });

@@ -3,8 +3,10 @@
 Estado vigente: instalación autorizada del 18/11/2026 comprobada mediante metadatos
 en transacción READ ONLY. Ver `PRODUCTION_DISABLED_INSTALL_20261118.md`. Las tres
 migraciones NO deben repetirse. Control apagado, cero decisiones, 23 triggers
-habilitados. Los dos roles son LOGIN sin contraseña: todavía no se probaron sus
-conexiones, sesiones comerciales ni el servidor Contabo.
+habilitados. El Issue fiscal #12 contiene evidencia POSTERIOR: ambos secretos ya instalados,
+logins TLS reales aprobados, HTTPS de salud/renovación y JWT real ES256, más una
+única decisión ACCEPTED de ensayo conservada. No repetir esas operaciones.
+La materialización LAB y aceptación completa GoTrue/negativos siguen pendientes.
 
 Diseño original de la orden PR4 #6976659412. Reutiliza el helper probado en Supabase LAB y las validaciones
 comerciales/outbox del protocolo anterior. No reinstala los dos esquemas LAB.
@@ -29,7 +31,7 @@ materializador; preparación/identidad sólo gateway. Nunca numeración, CAE o e
 
 La credencial del gateway debe ser vicora_origin_gateway, y la del materializador
 vicora_origin_materializer, LOGIN sin SUPERUSER/BYPASSRLS/INHERIT/membresías ni derechos
-sobre tablas/RPC ajenas. Los roles ya existen; sólo faltan credenciales distintas por canal privado autorizado.
+sobre tablas/RPC ajenas. Los roles y sus dos credenciales distintas YA fueron aprovisionados y probados por el operador.
 No ejecutar nuevamente roles.review.sql.
 `roles.review.sql` crea únicamente grupos NOLOGIN; no genera ni guarda passwords.
 No hay permisos para anon/authenticated/service_role ni EXECUTE PUBLIC.
@@ -91,10 +93,10 @@ CAS/replay del almacén privado existente. Nunca se almacenan certificados o cla
    prueba la autenticación de los trabajadores ni lee ventas/usuarios.
 2. NO repetir source_contract.sql, roles.review.sql ni la corrección PUBLIC.
    Las tres migraciones ya se aplicaron; no volver a abrir los grants corregidos.
-3. Aprovisionar las dos contraseñas mediante canal privado y almacén seguro en el
-   servidor. Nunca usar postgres/service_role como identidad del preparador.
-4. Usar el incremento final del PR11 y su inspección de ambos logins con el control
-   apagado. Esa inspección ejecuta admission() con bloqueo compartido: no es una
+3. Conservar las dos credenciales cifradas existentes; no regenerarlas ni repetir
+   sus pruebas ya aprobadas. Nunca usar postgres/service_role como identidad operativa.
+4. El incremento de 43 archivos y la inspección ya están instalados/aprobados según
+   Issue #12. Reutilizarlos, no instalarlos ni comprobarlos nuevamente. Esa inspección ejecuta admission() con bloqueo compartido: no es una
    transacción READ ONLY, pero no realiza DML ni llama procedimientos comerciales.
 5. La habilitación temporal de preparación y las pruebas con datos de ensayo reales
    necesitan aprobación aparte. No implica reservar R100, emitir o iniciar servicios.
@@ -106,3 +108,6 @@ El ZIP es sólo código; no instala SQL ni activa nada. El rollback del código 
 perfiles/CA/credenciales y servicios apagados. rollback.sql queda como procedimiento
 histórico de deshabilitación/revocación de la API, para autorización expresa; no se
 necesita ejecutarlo ahora. Conserva decisiones y ACKs y nunca permite reemitir.
+
+La extensión recovery nueva está en RECOVERY_REVIEW.md y recovery.review.sql: sólo
+preparada, necesita aprobación específica. No confundirla con la instalación anterior.
