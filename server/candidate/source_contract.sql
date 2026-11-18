@@ -2,6 +2,8 @@
 -- Execution requires explicit DBA approval and endpoint identity/TLS verification.
 -- The review GUC prevents accidental execution; it is NOT proof of project identity.
 BEGIN;
+SET LOCAL lock_timeout='800ms';
+SET LOCAL statement_timeout='5s';
 DO $guard$ DECLARE r record; BEGIN
  IF current_setting('vicora.review.installation',true) IS DISTINCT FROM 'APPROVED_SOURCE_CONTRACT_V1'
  THEN RAISE EXCEPTION 'REVIEW_APPROVAL_REQUIRED'; END IF;

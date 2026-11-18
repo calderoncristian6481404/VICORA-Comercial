@@ -18,3 +18,10 @@ AND a.attnum>0 AND NOT a.attisdropped ORDER BY n.nspname,c.relname,a.attnum;
 SELECT n.nspname,c.relname,t.tgname,t.tgenabled,t.tgfoid::regprocedure::text AS function
 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
 WHERE n.nspname='public' AND c.relname IN('usuarios','suscripciones','ventas','ventas_detalle') AND NOT t.tgisinternal;
+
+-- PUBLIC ACLs are visible even before the two operational roles exist.
+SELECT p.oid,n.nspname,p.proname,pg_get_function_identity_arguments(p.oid) AS signature
+FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+WHERE n.nspname IN('public','auth') AND p.prosecdef AND a.grantee=0 AND a.privilege_type='EXECUTE'
+ORDER BY p.oid;

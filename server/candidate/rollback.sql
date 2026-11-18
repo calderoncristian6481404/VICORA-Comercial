@@ -1,5 +1,7 @@
 -- Additive shutdown only; retains decisions, snapshots, ACKs and Auth objects.
 BEGIN;
+SET LOCAL lock_timeout='800ms';
+SET LOCAL statement_timeout='5s';
 DO $guard$ BEGIN
  IF current_setting('vicora.review.installation',true) IS DISTINCT FROM 'APPROVED_SOURCE_CONTRACT_V1'
  THEN RAISE EXCEPTION 'REVIEW_APPROVAL_REQUIRED'; END IF;
