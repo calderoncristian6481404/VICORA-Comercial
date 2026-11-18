@@ -9,7 +9,7 @@ BEGIN
  OR obj_description(to_regnamespace('vicora_origin_api'),'pg_namespace') IS DISTINCT FROM 'REVIEWED_SOURCE_V1; prepared only, no numbering or fiscal transport'
  OR to_regclass('vicora_origin_private.decisions') IS NULL
  THEN RAISE EXCEPTION 'SOURCE_RECOVERY_REVIEW_REQUIRED'; END IF;
- IF EXISTS(SELECT FROM vicora_origin_private.control WHERE enabled) THEN RAISE EXCEPTION 'PREPARATION_MUST_REMAIN_DISABLED'; END IF;
+ IF (SELECT enabled FROM vicora_origin_private.control WHERE id=1) IS DISTINCT FROM false THEN RAISE EXCEPTION 'PREPARATION_MUST_REMAIN_DISABLED'; END IF;
  IF to_regnamespace('vicora_origin_recovery') IS NOT NULL THEN
   IF obj_description(to_regnamespace('vicora_origin_recovery'),'pg_namespace') IS DISTINCT FROM 'SOURCE_RECOVERY_V1_DISABLED_BY_DEFAULT'
   OR (SELECT count(*) FROM pg_proc WHERE pronamespace='vicora_origin_recovery'::regnamespace)<>4
