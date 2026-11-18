@@ -49,3 +49,22 @@ triggers o permisos existentes. No ejecutar SQL por el hecho de aprobar pruebas.
 Informe único y operaciones externas:
 https://github.com/calderoncristian6481404/VICORA-ARCA-Experimental/blob/codex/api-fiscal-integrada/CIERRE_FINAL_VICORA_ARCA.md
 can_send=false; runtime_enabled=false; funcionalidad fiscal productiva apagada.
+
+## Cierre coordinado 18/11/2026 — sin publicación ni emisión
+
+PR4 conserva ticket NO FISCAL por defecto, factura opcional por venta, configuración
+administrativa con reautenticación y consulta autenticada del estado de preparación.
+Código comercial c852370b35551fb04fa68590ed1297093cd15905; cliente funcional ec91f27,
+inventario de revisión c677021. CI Linux/Windows 44407368899 (17 casos/plataforma),
+44408159042 (10/plataforma), contrato del origen en HEAD 44410108674 PASS.
+
+Cierre único, límites alojados, permisos nuevos preparados y comandos reversibles:
+https://github.com/calderoncristian6481404/VICORA-ARCA-Experimental/blob/codex/api-fiscal-integrada/CIERRE_FINAL_VICORA_ARCA.md
+PR11 código 58b6fdbcb14488cf3b0a52790859c2b640d3e380; CI 44413881667 SUCCESS:
+58 casos PostgreSQL17, navegador móvil/escritorio y entrega de 26 archivos.
+El navegador real usa un backend explícitamente sintético: no acredita servicios alojados.
+
+Issue12 conserva logins/HTTPS/JWT y UNA decisión VITALIA VEN-000040 ya comprobados;
+no repetirlos ni inventar identidad tributaria de VITALIA. Recovery SQL nuevo permanece
+sin instalar y requiere autorización separada. Ningún cambio de esta revisión modifica
+producción, Auth, RLS o Contabo. can_send=false; runtime_enabled=false. PR sin fusionar.
