@@ -79,6 +79,19 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
       const s=await session(),fresh=await reauthenticate();
       if(!fresh||fresh===s.access_token)throw new Error('Es necesaria una reautenticación reciente.');
       return request('config','PUT',profile,s.access_token,fresh);
+    },
+    async enrollmentStatus(){
+      const value=await request('enrollment','GET',null,(await session()).access_token);
+      if(value.environment!=='PRODUCCION'||!['SIN_CONFIGURAR','PENDIENTE_VERIFICACION','HABILITADO','REQUIERE_REVALIDACION'].includes(value.state))throw new Error('Verificación fiscal no disponible.');
+      return value;
+    },
+    async verifyEnrollment(version,reauthenticate){
+      if(!Number.isSafeInteger(version)||version<1||typeof reauthenticate!=='function')throw new Error('Configuración fiscal incompleta.');
+      const s=await session(),fresh=await reauthenticate();
+      if(!fresh||fresh===s.access_token)throw new Error('Es necesaria una reautenticación reciente.');
+      const value=await request('enrollment','POST',{version},s.access_token,fresh);
+      if(value.environment!=='PRODUCCION'||value.state!=='HABILITADO')throw new Error('ARCA no verificó la habilitación fiscal.');
+      return value;
     }
   };
 }
@@ -170,6 +183,35 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
         field('enabled','Solicitar habilitación de preparación (no emisión)','checkbox',profile.enabled);
         const password=field('password','Tu contraseña actual de VICORA','password','');password.autocomplete='current-password';
         const save=node('button','Guardar solicitud');save.type='submit';form.append(save);
+        const verifyButton=node('button','Verificar permisos fiscales ARCA');
+        verifyButton.type='button';
+        verifyButton.disabled=profile.version<1||profile.enabled!==true;
+        form.append(verifyButton);
+        verifyButton.onclick=async()=>{
+          if(verifyButton.disabled)return;
+          verifyButton.disabled=true;save.disabled=true;
+          try{
+            const verified=await api.verifyEnrollment(profile.version,async()=>{
+              const {data,error}=await db.auth.getUser();
+              if(error||!data?.user?.email)throw new Error('No se pudo verificar tu cuenta.');
+              const isolated=createAuthClient();
+              let response;
+              try{response=await isolated.auth.signInWithPassword({email:data.user.email,password:password.value});}
+              finally{password.value='';}
+              if(response.error||response.data?.user?.id!==data.user.id||!response.data?.session?.access_token)throw new Error('Reautenticación rechazada.');
+              return response.data.session.access_token;
+            });
+            const current=await api.profile();
+            profile.version=current.profile.version;
+            profile.state=current.profile.state;
+            message.textContent=verified.state==='HABILITADO'
+              ? 'ARCA verificó el perfil de este comercio. La emisión estará disponible cuando el servidor fiscal esté habilitado.'
+              : 'La verificación de ARCA no pudo completarse.';
+          }catch(_){
+            message.textContent='No se pudo verificar ARCA. Revisá la autorización del comercio y la conexión fiscal. No se emitió ninguna factura.';
+            try{const current=await api.profile();profile.version=current.profile.version;profile.state=current.profile.state;}catch(_){}
+          }finally{password.value='';save.disabled=false;verifyButton.disabled=profile.enabled!==true;}
+        };
         form.onsubmit=async event=>{
           event.preventDefault();if(save.disabled)return;save.disabled=true;
           const body={version:profile.version,issuer:fields.issuer.value.trim(),condition:fields.condition.value,point:Number(fields.point.value),representation:fields.representation.value,enabled:fields.enabled.checked};
@@ -184,7 +226,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
               // Never signOut globally: that could revoke the main VICORA session.
               return response.data.session.access_token;
             });
-            profile.version=result.profile.version;try{await refresh();}catch(_){root.VICORA_ARCA_UI_HABILITADA=false;}message.textContent='Solicitud guardada. Pendiente de verificación fiscal; emisión deshabilitada.';
+            profile.version=result.profile.version;profile.enabled=result.profile.enabled;verifyButton.disabled=profile.enabled!==true;try{await refresh();}catch(_){root.VICORA_ARCA_UI_HABILITADA=false;}message.textContent='Solicitud guardada. Verificá los permisos ante ARCA para continuar; todavía no se emitió ninguna factura.';
           }catch(_){message.textContent='No se pudo confirmar el cambio. Consultá la configuración antes de reintentar y revisá la contraseña y los permisos.';}
           finally{password.value='';save.disabled=false;}
         };
