@@ -24,6 +24,26 @@ test('per-sale selector never sends automatically and ordinary-ticket/later choi
  await elements.venElegirComun.onclick();elements.venElegirMasTarde.onclick();
  assert.equal(events.filter(e=>e[0]==='fiscal').length,0);assert.equal(events.filter(e=>e[0]==='ticket').length,1);
 });
+test('una habilitación del comercio permite elegir libremente el ticket de cada venta, sin reactivar ARCA',async()=>{
+ const {ctx,elements,events}=screen(true);
+ ctx.venElegirComprobante('VENTA-FISCAL');
+ assert.match(elements.venModal.innerHTML,/Ticket VICORA \(no fiscal\)/);
+ assert.match(elements.venModal.innerHTML,/Factura electrónica ARCA/);
+ assert.doesNotMatch(elements.venModal.innerHTML,/Solicitar habilitación|Habilitar para esta venta/);
+ elements.venElegirArca.onclick();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(events.filter(e=>e[0]==='fiscal').map(e=>e[1].saleRef),['VENTA-FISCAL']);
+ ctx.venElegirComprobante('VENTA-COMUN');
+ await elements.venElegirComun.onclick();
+ ctx.venElegirComprobante('VENTA-LUEGO');
+ elements.venElegirMasTarde.onclick();
+ assert.deepEqual(events.filter(e=>e[0]==='fiscal').map(e=>e[1].saleRef),['VENTA-FISCAL']);
+ assert.deepEqual(events.filter(e=>e[0]==='ticket').map(e=>e[1]),['VENTA-COMUN']);
+ const disabled=screen(false);
+ disabled.ctx.venElegirComprobante('VENTA-SIN-ARCA');
+ assert.equal(disabled.elements.venModal,undefined); // ordinary ticket path never needs fiscal availability
+});
+
 test('explicit invoice choice sends only the existing sale reference, never a commercial mutation',async()=>{
  const {ctx,events}=screen(true);await ctx.venEmitirFiscalDesdeVenta('SALE-A');
  const call=events.find(e=>e[0]==='fiscal');assert.equal(JSON.stringify(call[1]),JSON.stringify({saleRef:'SALE-A'}));
