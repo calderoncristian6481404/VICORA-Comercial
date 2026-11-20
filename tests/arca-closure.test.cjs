@@ -5,7 +5,7 @@ const db={auth:{getSession:async()=>({data:{session:{access_token:'SYNTHETIC'}}}
 const caps={preparation_enabled:false,configuration_enabled:true,document_types:[],can_send:false,runtime_enabled:false};
 const response=value=>({ok:true,json:async()=>value});
 function browser(capability,role='ADMINISTRADOR'){
- const button={hidden:true},root={VICORA_ARCA_CONFIG:{enabled:true,apiOrigin:'https://fiscal.invalid'},fetch:async()=>response(capability)};
+ const button={hidden:true},root={VICORA_ARCA_CONFIG:{enabled:true,apiOrigin:'https://fiscal.invalid'},fetch:async url=>response(url.endsWith('/status')?{status:'NO_DISPONIBLE',can_send:false,runtime_enabled:false}:capability)};
  const env={window:root,document:{getElementById:()=>button},URL,AbortController,setTimeout,clearTimeout};vm.createContext(env);vm.runInContext(fs.readFileSync(require.resolve('../arca.js'),'utf8'),env);
  return {root,button,install:()=>root.vicoraArcaInstalar({db,role,createAuthClient:()=>({})})};
 }
