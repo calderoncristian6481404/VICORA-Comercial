@@ -1,4 +1,4 @@
-/* Optional preparation-only client. No sale RPC, fiscal credentials or send API. */
+/* Optional per-sale fiscal client. No sale RPC or fiscal credentials in the browser. */
 (function(root){
 'use strict';
 function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
@@ -115,14 +115,23 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     }
     view.d.append(view.close);view.d.showModal();return value;
   }
+  const choosing=new Map();
   root.vicoraArcaIniciarEmision=async body=>{
-    const capability=await refresh();
-    if(capability.preparation_enabled!==true)throw new Error('El comercio no tiene preparación fiscal habilitada. El ticket común sigue disponible.');
-    let value=await api.prepare(body);
-    // Preparation never reserves. This separate request only follows the seller's
-    // explicit invoice choice and a SERVER-owned emitter-wide admission.
-    if(capability.completion_enabled===true)value=await api.requestAuthorization(body);
-    return showStatus(body,value);
+    if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Referencia de venta inválida.');
+    if(choosing.has(body.saleRef))return choosing.get(body.saleRef);
+    const pending=(async()=>{
+      const capability=await refresh();
+      // Existing uncertain/rejected/authorized work is consulted, never prepared
+      // or sent again just because the seller returns from sales history.
+      let value=await api.status(body);
+      if(value.status==='NO_DISPONIBLE'){
+        if(capability.preparation_enabled!==true)throw new Error('El comercio no tiene preparación fiscal habilitada. El ticket común sigue disponible.');
+        value=await api.prepare(body);
+      }
+      if(['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)&&capability.completion_enabled===true)value=await api.requestAuthorization(body);
+      return showStatus(body,value);
+    })().finally(()=>choosing.delete(body.saleRef));
+    choosing.set(body.saleRef,pending);return pending;
   };
   root.vicoraArcaConsultarEstado=async body=>showStatus(body,await api.status(body));
   let capability;try{capability=await refresh();}catch(_){return;}

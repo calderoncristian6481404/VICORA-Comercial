@@ -2,7 +2,7 @@ name: Optional fiscal completion client (offline)
 on:
   push:
     branches: [codex/api-fiscal-integrada]
-    paths: ['arca.js','tests/arca-completion.test.cjs','.github/workflows/arca-completion-focused.yml']
+    paths: ['ventas.js','tests/optional-receipts.test.cjs','tests/arca-ui-integration.test.cjs','arca.js','tests/arca-completion.test.cjs','.github/workflows/arca-completion-focused.yml']
 permissions:
   contents: read
 jobs:
@@ -21,6 +21,8 @@ jobs:
         with:
           node-version: '22'
       - run: node --check arca.js
+      - run: node --check ventas.js
+      - run: node tests/arca-ui-integration.test.cjs
       - run: node tests/arca-completion.test.cjs
       - run: node tests/arca.test.cjs
       - run: node tests/optional-receipts.test.cjs

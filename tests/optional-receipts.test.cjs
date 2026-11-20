@@ -41,7 +41,7 @@ test('una habilitación del comercio permite elegir libremente el ticket de cada
  assert.deepEqual(events.filter(e=>e[0]==='ticket').map(e=>e[1]),['VENTA-COMUN']);
  const disabled=screen(false);
  disabled.ctx.venElegirComprobante('VENTA-SIN-ARCA');
- assert.equal(disabled.elements.venModal,undefined); // ordinary ticket path never needs fiscal availability
+ assert.match(disabled.elements.venModal.innerHTML,/Ticket VICORA/); // selector remains useful without fiscal availability
 });
 
 test('explicit invoice choice sends only the existing sale reference, never a commercial mutation',async()=>{
