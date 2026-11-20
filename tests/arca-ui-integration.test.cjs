@@ -2,14 +2,14 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const operation='00000000-0000-4000-8000-000000000001';
 function result(status,extra={}){return {status,operation,can_send:false,runtime_enabled:false,authorization_verified:false,document_available:false,...extra};}
-async function ui(state,{ready=true,failStatus=false}={}){
+async function ui(state,{ready=true,failStatus=false,documentType=11}={}){
  const calls=[],dialogs=[];
  function element(tag){return {tag,style:{},children:[],append(...c){this.children.push(...c);},addEventListener(){},remove(){},showModal(){dialogs.push(this);},close(){},setAttribute(){}};}
  const browser={VICORA_ARCA_CONFIG:{enabled:true,apiOrigin:'https://fiscal.invalid'},fetch:async(url,o)=>{
   const path=url.split('/').at(-1);calls.push([path,o]);let value;
   if(path==='capabilities')value={preparation_enabled:ready,configuration_enabled:false,document_types:[1,6,11],completion_enabled:true,completion_mode:'LAB_TLS',can_send:false,runtime_enabled:false};
   else if(path==='status'){if(failStatus)throw new TypeError('SYNTHETIC_NETWORK_FAILURE');value=state;}
-  else if(path==='prepare')value=result('PREPARADO_NO_EMITIDO',{document_type:11});
+  else if(path==='prepare')value=result('PREPARADO_NO_EMITIDO',{document_type:documentType});
   else if(path==='request')value=result('DEMO_CONCILIADO_NO_FISCAL',{environment:'LAB_TLS'});
   else throw Error('UNEXPECTED_WRITE');
   return {ok:true,json:async()=>value};
@@ -51,4 +51,13 @@ test('two sales reuse merchant configuration; seller never saves or enables prof
  for(const saleRef of ['SALE-A','SALE-B'])await s.browser.vicoraArcaIniciarEmision({saleRef});
  assert.equal(s.calls.filter(c=>c[0]==='request').length,2);assert.equal(s.calls.filter(c=>c[0]==='config').length,0);
  await assert.rejects(s.browser.vicoraArcaIniciarEmision({saleRef:'SALE',enabled:true}));
+});
+
+test('A/B/C come from server fiscal preparation, never a seller-provided type',async()=>{
+ for(const documentType of [1,6,11]){
+  const s=await ui(result('NO_DISPONIBLE'),{documentType});
+  await s.browser.vicoraArcaIniciarEmision({saleRef:'SALE'});
+  assert.equal(s.calls.filter(c=>c[0]==='request').length,1);
+  assert.ok(s.calls.filter(c=>c[1].body).every(c=>JSON.stringify(JSON.parse(c[1].body))===JSON.stringify({saleRef:'SALE'})));
+ }
 });
