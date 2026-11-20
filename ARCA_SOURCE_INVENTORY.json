@@ -1,0 +1,211 @@
+{
+  "can_send": false,
+  "commercial_commit": "161c44d34da687587f454a1cd8d1dd9c8ae4a802",
+  "files": {
+    "arca.config.js": {
+      "git_blob_sha1": "3d1593063bdd805cd536c2facd1ad0fb63ea9ad0",
+      "routes": {
+        "auth": [],
+        "rpc": [],
+        "writes": []
+      },
+      "sha256": "c967477b5df35bb469e9f40c9996798aa47499c799d4352fc3fd6c452111798a"
+    },
+    "arca.js": {
+      "git_blob_sha1": "204088a4a1d77c90e3922eb9ed97c324c7aeedb8",
+      "routes": {
+        "auth": [
+          "getSession",
+          "getUser",
+          "signInWithPassword"
+        ],
+        "rpc": [],
+        "writes": []
+      },
+      "sha256": "5b981920ca18ed6eda157e6c4b9efec216929e8e72917498a347506dca93b20d"
+    },
+    "caja.js": {
+      "git_blob_sha1": "aa88638af939583cf96708329870b63ac0f116c8",
+      "routes": {
+        "auth": [],
+        "rpc": [],
+        "writes": []
+      },
+      "sha256": "44b80da3458b509bd7d3dcde91bbb63c68b179a7c683b89c64cd4c57622e7d35"
+    },
+    "cobros.js": {
+      "git_blob_sha1": "0ad988eab6cc3d15222a0c098d9cc4b52d6262c4",
+      "routes": {
+        "auth": [],
+        "rpc": [
+          "registrar_cobro_cliente"
+        ],
+        "writes": []
+      },
+      "sha256": "d334ce8263ef1624bf12f80e150b8d32325cc0393f7ada434d7c9c52349f951b"
+    },
+    "compras.js": {
+      "git_blob_sha1": "a1054d85a866a7792903fd045ad81733d3ffb6dc",
+      "routes": {
+        "auth": [],
+        "rpc": [
+          "anular_compra",
+          "confirmar_compra"
+        ],
+        "writes": [
+          "compras:insert",
+          "compras:update",
+          "compras_detalle:delete",
+          "compras_detalle:insert"
+        ]
+      },
+      "sha256": "be106e84cb5dcafbe9c934ec08ce4217c02c84e7b23ec036b810a64114a80863"
+    },
+    "gastos.js": {
+      "git_blob_sha1": "8d48bed277abd4d8b58a411f8e55b14460ff9c8e",
+      "routes": {
+        "auth": [],
+        "rpc": [
+          "vicora_crear_gasto",
+          "vicora_pagar_gasto"
+        ],
+        "writes": []
+      },
+      "sha256": "6f538445d97afefb98feb4d0e9c11a84906581bba3d9643ea5fa1f9f3eb47b58"
+    },
+    "index.html": {
+      "git_blob_sha1": "cc49d08551eee7b5f129feade893366e636eb786",
+      "routes": {
+        "auth": [
+          "getSession",
+          "getUser",
+          "signOut"
+        ],
+        "rpc": [
+          "ajustar_stock",
+          "vicora_comercial_avisos_aumento",
+          "vicora_comercial_estado_comprobante"
+        ],
+        "writes": [
+          "clientes:insert",
+          "clientes:update",
+          "productos:insert",
+          "productos:update"
+        ]
+      },
+      "sha256": "af000abd92b90ccf3bf9da94d270a58dca9ad8f7c943093b82b5e2895e6395e9"
+    },
+    "inicio.js": {
+      "git_blob_sha1": "59761b6d37b4591601808dcc3fad918b83135dca",
+      "routes": {
+        "auth": [],
+        "rpc": [],
+        "writes": []
+      },
+      "sha256": "8edab719d023e63d43cf52ba8e365b30cd023df928ce7ef47838dc810f5a5adc"
+    },
+    "pagos.js": {
+      "git_blob_sha1": "22e93cc623ed8cd016c07d1a9ab300878b68017a",
+      "routes": {
+        "auth": [],
+        "rpc": [
+          "registrar_pago_proveedor"
+        ],
+        "writes": []
+      },
+      "sha256": "cc12aaaccb041d131266ff511a50107274337880062182de32673814a63a1bae"
+    },
+    "presupuestos.js": {
+      "git_blob_sha1": "48d796364d37f09242d95ed885d890216b9d8b7c",
+      "routes": {
+        "auth": [],
+        "rpc": [
+          "vicora_convertir_presupuesto_venta"
+        ],
+        "writes": [
+          "presupuestos:update"
+        ]
+      },
+      "sha256": "ab85ed53cad18c5cde76555879b5316a9d81c5c18ed67618ace168fc33d84f61"
+    },
+    "proveedores.js": {
+      "git_blob_sha1": "438cf47d3436e03031482004cb0a98f36a9217ed",
+      "routes": {
+        "auth": [],
+        "rpc": [],
+        "writes": [
+          "proveedores:insert",
+          "proveedores:update"
+        ]
+      },
+      "sha256": "eca5f1ae52cdd3ebf911f169dd057fff34c59f3d300621bbce8fe29edc450456"
+    },
+    "reportes.js": {
+      "git_blob_sha1": "e2ab125231b817fcae439495d9ba473d1bda582a",
+      "routes": {
+        "auth": [],
+        "rpc": [],
+        "writes": []
+      },
+      "sha256": "63a729221a2747398b9ba5373eab068c4f5f3d19bd9b5b7bb5415d3eec8b48d5"
+    },
+    "solo_lectura.js": {
+      "git_blob_sha1": "032aba3eea220e47f9eb1b1961d7fb2829bd404e",
+      "routes": {
+        "auth": [],
+        "rpc": [],
+        "writes": []
+      },
+      "sha256": "e134d2bf9ab3e4d48c53d283c3075fe36cde8c89871ea589c053e87d090f575c"
+    },
+    "ventas.js": {
+      "git_blob_sha1": "5b7e50dc76698dbe12877cfe739af2d69f4eaf29",
+      "routes": {
+        "auth": [],
+        "rpc": [
+          "anular_venta",
+          "confirmar_venta",
+          "obtener_contexto_devolucion",
+          "registrar_devolucion_parcial"
+        ],
+        "writes": [
+          "ventas:insert",
+          "ventas_detalle:insert"
+        ]
+      },
+      "sha256": "a9f9db2710f22285e49772ff64bd9d3eadb0df50749259478322766a3c3c9d7c"
+    }
+  },
+  "fiscal_code": "d54804282a311c72cf6f8a314482ca062c060aca",
+  "hosted_adapter_admitted": false,
+  "managed_auth_writer_participation_verified": false,
+  "order_comment": 6965546606,
+  "runtime_enabled": false,
+  "schema": "vicora-commercial-authority-review-v1",
+  "scope": "LITERAL_STATIC_CALLS_NOT_COMPLETE_SQL_OR_HOSTED_AUDIT",
+  "server_adapter_implemented": true,
+  "server_protocol": "SOURCE_COMMITTED_PREPARATION_LAB_V1",
+  "subscription_guards": {
+    "DB/MIGRACIONES/20261112_guardia_suscripcion_escrituras.sql": "8266d64d01bfe30da86c060ee62f5ce9faa60148852036360b9fd82329c5b09a",
+    "solo_lectura.js": "e134d2bf9ab3e4d48c53d283c3075fe36cde8c89871ea589c053e87d090f575c"
+  },
+  "reviewed_changes": {
+    "ventas.js": "Only explicit nonfiscal label in ordinary ticket; commercial writes unchanged."
+  },
+  "reviewed_revisions": {
+    "arca.js": {
+      "baseline_sha256": "5b981920ca18ed6eda157e6c4b9efec216929e8e72917498a347506dca93b20d",
+      "sha256": "5b5e04539b961df5be11b04e10bb0a786313c2ac5f7a5f2b8ec109ed62f366d1",
+      "git_blob_sha1": "0389ad5650c98c4253ae93bf30997c3e4dc12839",
+      "code_commit": "ec91f27a1de0b8fd6fd554c8c8dd30c9254235ee",
+      "reason": "Backend-authenticated preparation readiness and read-only status; commercial RPC/writes unchanged."
+    },
+    "ventas.js": {
+      "baseline_sha256": "a9f9db2710f22285e49772ff64bd9d3eadb0df50749259478322766a3c3c9d7c",
+      "sha256": "3006089ee710a0dc8fb8f2a2e9f772cf06c410d80385f895118572fcb6753020",
+      "git_blob_sha1": "c7993af5653156a2a012a7566143ad58295a101c",
+      "code_commit": "ec91f27a1de0b8fd6fd554c8c8dd30c9254235ee",
+      "reason": "Backend-authenticated preparation readiness and read-only status; commercial RPC/writes unchanged."
+    }
+  }
+}
