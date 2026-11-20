@@ -8,6 +8,19 @@
 > del PR11. Informe vigente: CIERRE_FINAL_VICORA_ARCA.md del repositorio fiscal.
 > No se declara el preparador operativo: servicios OFF, can_send=false/runtime_enabled=false.
 
+## Decisión final de producto — comprobante opcional POR VENTA (19/11/2026)
+
+**Regla solicitada por el titular:**
+1. VICORA registra la venta **una única vez**, con los movimientos comerciales normales de stock, cobro y caja. La elección del comprobante se hace **después** de confirmar esa venta, no la sustituye ni vuelve a insertarla.
+2. Si el comercio tiene facturación electrónica legítimamente configurada y autorizada **una vez a nivel del comercio**, el vendedor elige para **cada venta** entre **Ticket VICORA (NO FISCAL)** o **Comprobante fiscal ARCA**; también puede decidir más tarde desde el historial. **El vendedor NO activa ni habilita la integración fiscal cada vez que vende.** Elegir fiscal en una venta no obliga ni preselecciona fiscal para la siguiente.
+3. Ticket común debe estar siempre disponible y nunca llamar a ARCA ni necesitar certificado, permiso, perfil fiscal o vinculación. Si ARCA no está operativo, la venta y ticket común funcionan igual.
+4. Elegir comprobante fiscal debe operar solo sobre el `saleRef` de la venta confirmada, con identidad, negocio, rol, suscripción y emisor determinados y autorizados **en el servidor**. No modificar stock/caja, crear otra venta ni aceptar CUIT/tipo/CAE desde el navegador. El sistema determina tipo A/B/C según condición fiscal real.
+5. **No confundir situación actual con funcionamiento terminado:** el código de esta rama únicamente solicita preparación y muestra `PREPARADO_NO_EMITIDO`; no genera ni imprime comprobante fiscal, PDF/QR con CAE auténtico. Al completar el circuito ARCA se habilitará la emisión real solamente después de WSFE, CAE, persistencia y consulta independiente, con bloqueo duradero de resultados inciertos y sin reenvío duplicado. En producción actual los controles siguen apagados.
+6. Una habilitación inicial de facturación corresponde al **administrador/comercio emisor**, no a cada venta. No debe confundirse `config.enabled` de instalación, autorización fiscal de un emisor legítimo y la simple elección del vendedor en la pantalla.
+7. El modo ordinario es compatible con comercios que nunca utilizarán ARCA; el módulo fiscal es opcional, sin afectar VICORA Comercial 1.0 ni exigir que el desarrollador sea contribuyente por sus clientes.
+
+**Criterio de aceptación futuro:** comercio configurado una sola vez → venta A, ticket VICORA → venta B, fiscal ARCA → venta C, ticket VICORA; exactamente **3 ventas comerciales**, solo **1 operación fiscal** solicitada y ninguna reconfiguración entre ventas. Para declarar completo se debe emitir en homologación autorizada con CAE genuino y después probar permiso/recuperación en producción, no con mocks.
+
 # Integración opcional Ticket VICORA / preparación ARCA
 
 Estado experimental, PR4 coordinado con PR11 y seguimiento fiscal #12. Sin publicación,
