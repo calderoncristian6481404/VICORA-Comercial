@@ -162,6 +162,7 @@ function venElegirComprobante(idVenta){
   $('venElegirMasTarde').onclick=venCerrar;
 }
 async function venGuardar(){
+ if(vicoraBloquearEdicion())return;
  if(ventasUI.confirmando||ventasUI.guardando)return;
  ventasUI.confirmando=true;
  try{return await venGuardarInterno();}finally{ventasUI.confirmando=false;}
