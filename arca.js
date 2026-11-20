@@ -1,6 +1,7 @@
 /* Optional per-sale fiscal client. No sale RPC or fiscal credentials in the browser. */
 (function(root){
 'use strict';
+let installation=0;
 function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
   const u=new URL(apiOrigin);
   if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.pathname!=='/')throw new Error('Configuración fiscal no disponible.');
@@ -87,14 +88,17 @@ function dialog(title){
   d.append(node('h2',title));const close=node('button','Cerrar');close.type='button';close.onclick=()=>d.close();d.addEventListener('close',()=>d.remove());document.body.append(d);return {d,close};
 }
 root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
+  const generation=++installation;
+  for(const name of ['vicoraArcaIniciarEmision','vicoraArcaConsultarEstado','vicoraArcaRefrescarDisponibilidad'])delete root[name];
   root.VICORA_ARCA_UI_HABILITADA=false;
-  const button=document.getElementById('vicoraArcaConfiguracion');if(button)button.hidden=true;
+  const button=document.getElementById('vicoraArcaConfiguracion');if(button){button.hidden=true;button.onclick=null;}
   const config=root.VICORA_ARCA_CONFIG;
   if(config?.enabled!==true)return;
   let api;try{api=client({db,apiOrigin:config.apiOrigin});}catch(_){return;}
   async function refresh(){
     root.VICORA_ARCA_UI_HABILITADA=false;
     const capability=await api.capabilities();
+    if(generation!==installation)throw new Error('La sesión cambió. Volvé a consultar desde la venta.');
     root.VICORA_ARCA_UI_HABILITADA=capability.preparation_enabled===true;
     return capability;
   }
@@ -118,22 +122,33 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
   const choosing=new Map();
   root.vicoraArcaIniciarEmision=async body=>{
     if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Referencia de venta inválida.');
-    if(choosing.has(body.saleRef))return choosing.get(body.saleRef);
+    const {data,error}=await db.auth.getSession(),token=data?.session?.access_token;
+    if(error||!token||generation!==installation)throw new Error('Iniciá sesión nuevamente.');
+    async function sameSession(){const current=await db.auth.getSession();if(generation!==installation||current.error||current.data?.session?.access_token!==token)throw new Error('La sesión cambió. Consultá el estado antes de continuar.');}
+    const choiceKey=token+'|'+body.saleRef;
+    if(choosing.has(choiceKey))return choosing.get(choiceKey);
     const pending=(async()=>{
       const capability=await refresh();
       // Existing uncertain/rejected/authorized work is consulted, never prepared
       // or sent again just because the seller returns from sales history.
-      let value=await api.status(body);
+      let value=await api.status(body);await sameSession();
       if(value.status==='NO_DISPONIBLE'){
         if(capability.preparation_enabled!==true)throw new Error('El comercio no tiene preparación fiscal habilitada. El ticket común sigue disponible.');
         value=await api.prepare(body);
       }
+      await sameSession();
       if(['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)&&capability.completion_enabled===true)value=await api.requestAuthorization(body);
-      return showStatus(body,value);
-    })().finally(()=>choosing.delete(body.saleRef));
-    choosing.set(body.saleRef,pending);return pending;
+      await sameSession();return showStatus(body,value);
+    })().finally(()=>choosing.delete(choiceKey));
+    choosing.set(choiceKey,pending);return pending;
   };
-  root.vicoraArcaConsultarEstado=async body=>showStatus(body,await api.status(body));
+  root.vicoraArcaConsultarEstado=async body=>{
+    const before=await db.auth.getSession(),token=before.data?.session?.access_token;
+    if(before.error||!token||generation!==installation)throw new Error('Iniciá sesión nuevamente.');
+    const value=await api.status(body),after=await db.auth.getSession();
+    if(after.error||after.data?.session?.access_token!==token||generation!==installation)throw new Error('La sesión cambió. Consultá el estado nuevamente.');
+    return showStatus(body,value);
+  };
   let capability;try{capability=await refresh();}catch(_){return;}
   if(button&&role==='ADMINISTRADOR'&&capability.configuration_enabled===true){
     button.hidden=false;button.onclick=async()=>{
