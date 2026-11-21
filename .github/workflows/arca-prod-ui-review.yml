@@ -1,15 +1,21 @@
 name: ARCA production UI review (non-emitting)
 on:
   push:
-    branches: [integracion/arca-comprobante-produccion-20261121]
+    branches: [integracion/arca-comprobante-produccion-20261121, integracion/arca-onboarding-visible-off-20261121]
     paths:
       - 'arca.js'
+      - 'arca.config.js'
+      - 'index.html'
+      - 'tests/arca-onboarding-readiness.test.cjs'
       - 'tests/arca-completion.test.cjs'
       - 'tests/arca-ui-integration.test.cjs'
       - '.github/workflows/arca-prod-ui-review.yml'
   pull_request:
     paths:
       - 'arca.js'
+      - 'arca.config.js'
+      - 'index.html'
+      - 'tests/arca-onboarding-readiness.test.cjs'
       - 'tests/arca-completion.test.cjs'
       - 'tests/arca-ui-integration.test.cjs'
 permissions:
@@ -30,4 +36,4 @@ jobs:
         with:
           node-version: '22'
       - run: node --check arca.js
-      - run: node --test tests/arca-completion.test.cjs tests/arca-ui-integration.test.cjs tests/arca-enrollment.test.cjs tests/arca.test.cjs tests/optional-receipts.test.cjs
+      - run: node --test tests/arca-completion.test.cjs tests/arca-ui-integration.test.cjs tests/arca-enrollment.test.cjs tests/arca-onboarding-readiness.test.cjs tests/arca.test.cjs tests/optional-receipts.test.cjs
