@@ -113,6 +113,28 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
   root.VICORA_ARCA_UI_HABILITADA=false;
   const button=document.getElementById('vicoraArcaConfiguracion');if(button){button.hidden=true;button.onclick=null;}
   const config=root.VICORA_ARCA_CONFIG;
+  // Administrative onboarding visibility is NOT a fiscal API or emission grant.
+  // Display a useful read-only first-merchant checklist even when backend is OFF.
+  // Never collect CUIT, credentials or identity proof in this offline view.
+  if(config?.showSetup===true && button && role==='ADMINISTRADOR'){
+    button.hidden=false;
+    button.onclick=()=>{
+      if(generation!==installation)return;
+      const view=dialog('Configuración · Facturación electrónica');
+      view.d.append(
+        node('p','Estado: preparación disponible; emisión fiscal pendiente de autorización. No se generan CAE ni facturas desde esta pantalla.'),
+        node('p','VICORA conserva el ticket común NO FISCAL para todas las ventas.')
+      );
+      const list=node('ol');
+      for(const step of [
+        'El titular del primer comercio autoriza su CUIT, punto de venta y representación ante ARCA.',
+        'VICORA verifica el certificado, los permisos y la numeración real de ese comercio, sin reutilizar números.',
+        'Tras la aceptación operativa, el administrador configura la facturación y el vendedor puede elegir factura ARCA por venta.'
+      ])list.append(node('li',step));
+      view.d.append(list,node('p','No ingreses contraseñas fiscales ni certificados aquí. Cuando se habilite la conexión segura aparecerá el formulario del comercio.'),view.close);
+      view.d.showModal();
+    };
+  }
   if(config?.enabled!==true)return;
   let api;try{api=client({db,apiOrigin:config.apiOrigin});}catch(_){return;}
   async function refresh(){
