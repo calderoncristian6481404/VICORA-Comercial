@@ -37,3 +37,31 @@ test('synthetic fixture exercises PDF MIME/header recheck, not an authentic CAE 
  const c=api(async(url,o)=>url.endsWith('/status')?ok(state):({ok:true,headers:{get:()=> 'application/pdf'},blob:async()=>new Blob(['%PDF-SYNTHETIC-NOT-A-FISCAL-DOCUMENT'])}));
  assert.equal((await c.document(body,'80mm')).type,'');await assert.rejects(c.document(body,'OTHER'));
 });
+
+test('real production CAE is downloadable only with matching independently verified status',async()=>{
+ const verified={status:'AUTORIZADO_PROD_VERIFICADO',operation,environment:'PRODUCCION',authorization_verified:true,document_available:true,can_send:false,runtime_enabled:false};
+ const calls=[];const c=api(async(url,opts)=>{
+  calls.push(url);
+  if(url.endsWith('/status'))return ok(verified);
+  if(url.endsWith('/document'))return {ok:true,headers:{get:()=> 'application/pdf'},blob:async()=>new Blob(['%PDF-VERIFIED-FIXTURE-ONLY'])};
+  throw Error('UNEXPECTED_ROUTE');
+ });
+ const result=await c.document(body,'A4');assert.equal(result.type,'');assert.deepEqual(calls.map(x=>x.split('/').at(-1)),['status','document']);
+ for(const forged of [
+  {...verified,environment:'HOMOLOGACION'},
+  {...verified,authorization_verified:false},
+  {...verified,document_available:false},
+  {...verified,status:'CONSULTA_REGISTRADA'},
+  {...verified,status:'PENDIENTE_CONCILIACION'},
+ ])await assert.rejects(api(async()=>ok(forged)).document(body,'A4'));
+});
+test('production mode only sends an existing saleRef; never allows direct reserve/emit',async()=>{
+ const prod={...caps,completion_mode:'PRODUCCION'};
+ const pending={...uncertain,status:'PENDIENTE_CONCILIACION',environment:'PRODUCCION'};
+ const calls=[];const c=api(async(url,opts)=>{calls.push([url,opts]);return ok(url.endsWith('/capabilities')?prod:pending);});
+ assert.equal((await c.requestAuthorization(body)).status,'PENDIENTE_CONCILIACION');
+ assert.equal((await c.reconcile(body)).status,'PENDIENTE_CONCILIACION');
+ assert.deepEqual(calls.filter(v=>v[1].body).map(v=>JSON.parse(v[1].body)),[body,body]);
+ assert.equal(calls.filter(v=>/\/(emit|reserve)$/.test(v[0])).length,0);
+ assert.equal(calls.filter(v=>/\/request$/.test(v[0])).length,1);
+});
