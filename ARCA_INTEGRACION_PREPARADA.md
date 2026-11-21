@@ -1,3 +1,15 @@
+> **Actualización comercial 21/11/2026 (vigente):** en VICORA Comercial el administrador ya
+> puede completar, guardar y recuperar un borrador de alta ARCA y enviar una
+> solicitud para su comercio. La tabla `public.vicora_arca_solicitudes_comercio`
+> está instalada con RLS y control de suscripción. No recopila claves fiscales,
+> ni autoriza un CUIT ni genera comprobantes por sí misma. Este paso sí puede
+> ofrecerse a futuros clientes como **solicitud de configuración**, no como
+> facturación electrónica operativa. La interfaz fiscal continúa
+> `enabled:false` y `apiOrigin:''`. Emisión, CAE, R100 activo y conciliación
+> requerirán el primer comercio legítimo autorizado, y la aceptación privada
+> de origen/Contabo que sigue pendiente. Los datos sólo se guardan al pulsar
+> `Guardar borrador` o `Enviar solicitud de habilitación`.
+>
 > Actualización posterior 18/11/2026: los dos contratos SQL ya están instalados y OFF,
 > y el operador confirmó los 26 archivos instalados en Contabo. No repetirlos, ni
 > passwords/HTTPS/TLS/VEN-000040. La configuración privada y su aceptación completa

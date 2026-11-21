@@ -8,6 +8,6 @@
 
 **Suscripciones:** el trigger de vigencia comercial existente se aplica a esta tabla, para conservar modo solo consulta cuando una suscripción vence.
 
-**Prueba antes de publicación:** validar RLS con role `authenticated`, comprobar bloqueo de cambio de negocio, bloqueo de estado `HABILITADA`, y confirmar que las otras tablas comercial y fiscal siguen intactas.
+**Publicación:** PR #10 fusionado en `main`, pruebas de navegador aprobadas en Ubuntu/Windows, migración aplicada al proyecto `VICORA ADMIN`, RLS/FORCE y trigger comercial comprobados. Una inserción sintética de borrador bajo un administrador autenticado y vigente se ensayó en transacción con `ROLLBACK`; las filas actuales siguen en cero. ARCA, R100 y la emisión permanecen OFF.
 
-**Operación:** la recepción de solicitudes se almacena para el futuro flujo de aprobación; NO dispara correos ni autoriza automáticamente a ningún comercio y no debe publicitarse como facturación operativa.
+**Operación:** la recepción de solicitudes se almacena para el futuro flujo de revisión; NO dispara correos ni autoriza automáticamente a ningún comercio. Actualmente las solicitudes pueden revisarse administrativamente desde la tabla protegida en Supabase (no hay bandeja de recepción automática en VICORA ADMIN). No debe publicitarse como facturación operativa.
