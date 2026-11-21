@@ -59,7 +59,7 @@ test('production config remains OFF and script cache updated',()=>{
  const cfg=fs.readFileSync(require.resolve('../arca.config.js'),'utf8');
  const page=fs.readFileSync(require.resolve('../index.html'),'utf8');
  assert.ok(cfg.includes("enabled:false,apiOrigin:'',showSetup:true"));
- assert.ok(page.includes('arca.js?v=20261121-formulario-v1'));
+ assert.ok(page.includes('arca.js?v=20261121-solicitud-cliente-v1'));
  assert.ok(page.includes('arca.config.js?v=20261121-formulario-v1'));
  assert.ok(!code.includes('localStorage'));
  assert.ok(!code.includes('/v1/fiscal/emit'));
