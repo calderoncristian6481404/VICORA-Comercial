@@ -50,7 +50,7 @@ FOR SELECT TO authenticated USING (
   SELECT 1 FROM public.usuarios u
   JOIN public.negocios n ON n.id_negocio=u.id_negocio
   WHERE u.auth_user_id=(SELECT auth.uid()) AND
-        u.id_negocio=id_negocio AND
+        u.id_negocio=vicora_arca_solicitudes_comercio.id_negocio AND
         u.rol='ADMINISTRADOR' AND u.estado='ACTIVO' AND n.estado='ACTIVO'
  )
 );
@@ -61,7 +61,7 @@ FOR INSERT TO authenticated WITH CHECK (
   SELECT 1 FROM public.usuarios u
   JOIN public.negocios n ON n.id_negocio=u.id_negocio
   WHERE u.auth_user_id=(SELECT auth.uid()) AND
-        u.id_negocio=id_negocio AND
+        u.id_negocio=vicora_arca_solicitudes_comercio.id_negocio AND
         u.rol='ADMINISTRADOR' AND u.estado='ACTIVO' AND n.estado='ACTIVO'
  )
 );
@@ -73,7 +73,7 @@ USING (
   SELECT 1 FROM public.usuarios u
   JOIN public.negocios n ON n.id_negocio=u.id_negocio
   WHERE u.auth_user_id=(SELECT auth.uid()) AND
-        u.id_negocio=id_negocio AND
+        u.id_negocio=vicora_arca_solicitudes_comercio.id_negocio AND
         u.rol='ADMINISTRADOR' AND u.estado='ACTIVO' AND n.estado='ACTIVO'
  )
 )
@@ -82,7 +82,7 @@ WITH CHECK (
   SELECT 1 FROM public.usuarios u
   JOIN public.negocios n ON n.id_negocio=u.id_negocio
   WHERE u.auth_user_id=(SELECT auth.uid()) AND
-        u.id_negocio=id_negocio AND
+        u.id_negocio=vicora_arca_solicitudes_comercio.id_negocio AND
         u.rol='ADMINISTRADOR' AND u.estado='ACTIVO' AND n.estado='ACTIVO'
  )
 );
