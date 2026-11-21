@@ -76,3 +76,18 @@ test('disabling/reinstalling module invalidates old callbacks and clears adminis
  assert.equal(s.browser.vicoraArcaIniciarEmision,undefined);
  await assert.rejects(old({saleRef:'SALE'}));assert.equal(s.calls.length,0);
 });
+
+test('production CAE from server may show print options without another fiscal write',async()=>{
+ const s=await ui(result('AUTORIZADO_PROD_VERIFICADO',{environment:'PRODUCCION',authorization_verified:true,document_available:true}),{ready:false});
+ await s.browser.vicoraArcaIniciarEmision({saleRef:'SALE'});
+ assert.deepEqual(s.calls.map(x=>x[0]),['capabilities','status']);
+ assert.ok(s.dialogs[0].children.some(c=>c.textContent==='Descargar PDF A4'));
+ assert.ok(!s.calls.some(x=>['prepare','request','reconcile'].includes(x[0])));
+});
+test('unverified production consultation cannot print or pretend it received CAE',async()=>{
+ const s=await ui(result('PENDIENTE_CONCILIACION',{environment:'PRODUCCION'}),{ready:false});
+ await s.browser.vicoraArcaConsultarEstado({saleRef:'SALE'});
+ assert.ok(s.dialogs[0].children.every(c=>c.textContent!=='Descargar PDF A4'));
+ assert.ok(s.dialogs[0].children.some(c=>c.textContent==='Consultar y conciliar (sin reenviar)'));
+ assert.ok(!s.calls.some(x=>['request','prepare'].includes(x[0])));
+});
