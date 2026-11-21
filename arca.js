@@ -113,8 +113,9 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
   root.VICORA_ARCA_UI_HABILITADA=false;
   const button=document.getElementById('vicoraArcaConfiguracion');if(button){button.hidden=true;button.onclick=null;}
   const config=root.VICORA_ARCA_CONFIG;
-  // Only a preview when server is OFF. These inputs never leave the browser:
-  // no fetch, no storage, no app RPC, no issuer admission, no credential entry.
+  // Merchant onboarding is separate from invoice emission. Admin may explicitly
+  // store a draft/request under its Supabase RLS business; never private keys.
+  // No ARCA issuance, WSAA call, invoice number or CAE from this UI.
   function offlineSetup(){
     const view=dialog('Facturación electrónica · Alta de comercio');
     view.d.style.cssText='box-sizing:border-box;width:min(680px,calc(100vw - 20px));max-width:680px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:auto;border:1px solid #dfe5ef;border-radius:16px;padding:clamp(14px,3vw,26px);color:#243247;background:#fff;box-shadow:0 22px 70px #11182733';
@@ -122,7 +123,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     if(heading)heading.style.cssText='font-size:clamp(19px,4vw,23px);line-height:1.25;margin:0 0 12px';
     const note=node('div');
     note.style.cssText='padding:11px 13px;background:#fef3c7;color:#713f12;border:1px solid #fde68a;border-radius:10px;margin:12px 0 18px;font-size:13px;line-height:1.5';
-    note.textContent='VISTA PREVIA · Sin conexión fiscal. Podés completar los campos para conocer el formulario, pero no se guardan ni se envían. La emisión ARCA continúa desactivada.';
+    note.textContent='ALTA DE COMERCIO · Podés guardar un borrador o enviar la solicitud de configuración para tu negocio. Esto NO habilita la emisión. ARCA y la numeración se verificarán después con el titular.';
     view.d.append(note);
     function section(title,help){
       const wrap=node('section');wrap.style.cssText='margin:18px 0;padding:15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px';
@@ -156,9 +157,9 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     const representation=field(primary,'representation','Forma de representación',null,[['PROPIA','Emisión con representación propia'],['DELEGADA','Emisión por representante autorizado']],null,'La relación con WSFE se verifica por un canal privado.');
     const invoice=section('2. Datos para el comprobante','Se necesitan para completar y revisar la presentación de las facturas; algunos requisitos varían según el contribuyente.');
     const businessName=field(invoice,'businessName','Nombre o razón social','text',null,'Nombre registrado del emisor');
-    field(invoice,'taxAddress','Domicilio fiscal','text',null,'Calle, número, ciudad y provincia');
-    field(invoice,'grossIncome','Ingresos Brutos o condición de exención','text',null,'Inscripción / exento según corresponda');
-    field(invoice,'activityStart','Inicio de actividades','date',null,null,'Según constancia fiscal del comercio.');
+    const taxAddress=field(invoice,'taxAddress','Domicilio fiscal','text',null,'Calle, número, ciudad y provincia');
+    const grossIncome=field(invoice,'grossIncome','Ingresos Brutos o condición de exención','text',null,'Inscripción / exento según corresponda');
+    const activityStart=field(invoice,'activityStart','Inicio de actividades','date',null,null,'Según constancia fiscal del comercio.');
     const requirements=section('3. Autorizaciones que tiene que gestionar el titular','VICORA no puede autorizarse automáticamente en nombre de un tercero.');
     const checklist=[
       'CUIT y condición fiscal reales del comercio',
@@ -174,9 +175,13 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     arcaLink.href='https://www.arca.gob.ar/ws/documentacion/certificados.asp';arcaLink.target='_blank';arcaLink.rel='noopener noreferrer';
     arcaLink.style.cssText='display:inline-block;color:#1d4ed8;font-weight:600;font-size:13px';
     requirements.append(arcaLink);
-    const warning=node('p','Seguridad: no cargues acá la clave fiscal, certificados privados, Token, Sign ni contraseñas. En el alta efectiva se pedirá reautenticación con la contraseña de VICORA, por canal seguro.');
+    const warning=node('p','Seguridad: nunca ingreses claves fiscales, certificados privados, Token ni Sign en este formulario. Los datos ingresados se guardan únicamente cuando elegís Guardar borrador o Enviar solicitud. Solo un administrador de este comercio puede consultarlos.');
     warning.style.cssText='font-size:12px;line-height:1.5;color:#475569;margin:15px 0';
     view.d.append(warning);
+    const consentRow=node('label');consentRow.style.cssText='display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.5;padding:12px;background:#eef2ff;border-radius:10px';
+    const consent=node('input');consent.type='checkbox';consent.name='declaraResponsabilidad';consent.checked=false;consent.style.cssText='width:18px;height:18px;flex-shrink:0;margin-top:2px';
+    consentRow.append(consent,node('span','Declaro que soy titular o tengo autorización del comercio para solicitar la configuración fiscal. Esto no sustituye la representación formal ante ARCA.'));
+    view.d.append(consentRow);
     const message=node('p');message.setAttribute('role','status');
     message.style.cssText='font-size:13px;line-height:1.5;color:#334155;min-height:18px;margin:7px 0';
     const actions=node('div');actions.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:14px';
@@ -196,9 +201,101 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
       if(!businessName.value.trim())errors.push('Indicá el nombre o razón social.');
       message.textContent=errors.length
         ? 'Faltan datos: '+errors.join(' ')
-        : 'Formato revisado. Esto NO comprueba CUIT, punto ni representación ante ARCA y NO guarda los datos.';
+        : 'Formato revisado. No verifica autorización ARCA ni guarda datos por sí solo.';
       message.style.color=errors.length?'#991b1b':'#166534';
     };
+    // The business is taken ONLY from a server-verified Supabase Auth user and
+    // its tenant-scoped users row, never from form fields or browser storage.
+    async function member(){
+      if(generation!==installation || role!=='ADMINISTRADOR')throw new Error('La sesión cambió.');
+      const {data:auth,error:authError}=await db.auth.getUser();
+      if(authError||!auth?.user?.id)throw new Error('Iniciá sesión nuevamente.');
+      const {data:users,error:userError}=await db.from('usuarios')
+        .select('id_negocio,rol,estado').eq('auth_user_id',auth.user.id).limit(2);
+      if(userError||!Array.isArray(users)||users.length!==1||
+         users[0].rol!=='ADMINISTRADOR'||users[0].estado!=='ACTIVO'||
+         !users[0].id_negocio||generation!==installation)
+        throw new Error('No se pudo verificar el administrador del comercio.');
+      return users[0].id_negocio;
+    }
+    function values(){
+      const clean=x=>String(x.value||'').trim()||null;
+      return {
+        cuit_emisor:clean(issuer),condicion_iva:clean(condition),
+        punto_venta:clean(point)?Number(point.value):null,
+        representacion:clean(representation),razon_social:clean(businessName),
+        domicilio_fiscal:clean(taxAddress),ingresos_brutos:clean(grossIncome),
+        inicio_actividades:clean(activityStart),declara_responsabilidad:consent.checked===true
+      };
+    }
+    function renderStatus(record){
+      if(!record){message.textContent='No hay una solicitud guardada para este comercio.';return;}
+      message.style.color='#334155';
+      message.textContent=record.estado==='SOLICITADA'
+        ? 'Solicitud registrada y pendiente de revisión. Todavía NO estás autorizado a emitir facturas ARCA.'
+        : 'Borrador guardado para este comercio. Podés completarlo y enviarlo cuando quieras.';
+    }
+    const savedStatus=node('p','Podés guardar la solicitud por comercio, sin activar ARCA. Consultá el estado con Cargar solicitud.');
+    savedStatus.style.cssText='font-size:13px;color:#475569;margin:10px 0';
+    view.d.append(savedStatus);
+    const load=action('Cargar solicitud');
+    load.onclick=async()=>{
+      load.disabled=true;
+      try{
+        const id=await member();
+        const {data,error}=await db.from('vicora_arca_solicitudes_comercio')
+          .select('cuit_emisor,condicion_iva,punto_venta,representacion,razon_social,domicilio_fiscal,ingresos_brutos,inicio_actividades,declara_responsabilidad,estado,solicitada_en')
+          .eq('id_negocio',id).maybeSingle();
+        if(error||generation!==installation)throw new Error('No se pudo recuperar la solicitud.');
+        if(data){
+          issuer.value=data.cuit_emisor||'';
+          condition.value=data.condicion_iva||'';
+          point.value=data.punto_venta==null?'':String(data.punto_venta);
+          representation.value=data.representacion||'';
+          businessName.value=data.razon_social||'';
+          taxAddress.value=data.domicilio_fiscal||'';
+          grossIncome.value=data.ingresos_brutos||'';
+          activityStart.value=data.inicio_actividades||'';
+          consent.checked=data.declara_responsabilidad===true;
+        }
+        renderStatus(data);
+      }catch(_){message.textContent='No se pudieron cargar los datos. Comprobá tu sesión y conexión.';message.style.color='#991b1b';}
+      finally{load.disabled=false;}
+    };
+    async function persist(submit,button){
+      if(generation!==installation)return;
+      const v=values(),errors=[];
+      if(submit){
+        if(!/^[0-9]{11}$/.test(v.cuit_emisor||''))errors.push('CUIT de 11 dígitos');
+        if(!['MONOTRIBUTO','RI','EXENTO'].includes(v.condicion_iva))errors.push('condición IVA');
+        if(!Number.isInteger(v.punto_venta)||v.punto_venta<1||v.punto_venta>99998)errors.push('punto WSFE');
+        if(!['PROPIA','DELEGADA'].includes(v.representacion))errors.push('representación');
+        if(!v.razon_social||!v.domicilio_fiscal||!v.ingresos_brutos||!v.inicio_actividades)
+          errors.push('datos para el comprobante');
+        if(v.declara_responsabilidad!==true)errors.push('declaración del responsable');
+      }
+      if(errors.length){
+        message.textContent='Para enviar la solicitud completá: '+errors.join(', ')+'.';
+        message.style.color='#991b1b';return;
+      }
+      button.disabled=true;
+      try{
+        const id=await member();
+        const payload={...v,id_negocio:id,estado:submit?'SOLICITADA':'BORRADOR'};
+        const {data,error}=await db.from('vicora_arca_solicitudes_comercio')
+          .upsert(payload,{onConflict:'id_negocio'})
+          .select('estado,solicitada_en,actualizada_en').single();
+        if(error||!data||generation!==installation)throw new Error('REQUEST_NOT_SAVED');
+        renderStatus(data);
+      }catch(_){
+        message.textContent='No se pudo guardar la solicitud. Revisá tu sesión o suscripción; si persiste, contactá a soporte VICORA.';
+        message.style.color='#991b1b';
+      }finally{button.disabled=false;}
+    }
+    const save=action('Guardar borrador');
+    save.onclick=()=>persist(false,save);
+    const submit=action('Enviar solicitud de habilitación','primary');
+    submit.onclick=()=>persist(true,submit);
     const copy=action('Copiar requisitos para el cliente');
     copy.onclick=async()=>{
       const text=['VICORA · Requisitos para facturación electrónica',...checklist,
