@@ -113,26 +113,111 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
   root.VICORA_ARCA_UI_HABILITADA=false;
   const button=document.getElementById('vicoraArcaConfiguracion');if(button){button.hidden=true;button.onclick=null;}
   const config=root.VICORA_ARCA_CONFIG;
-  // Administrative onboarding visibility is NOT a fiscal API or emission grant.
-  // Display a useful read-only first-merchant checklist even when backend is OFF.
-  // Never collect CUIT, credentials or identity proof in this offline view.
+  // Only a preview when server is OFF. These inputs never leave the browser:
+  // no fetch, no storage, no app RPC, no issuer admission, no credential entry.
+  function offlineSetup(){
+    const view=dialog('Facturación electrónica · Alta de comercio');
+    view.d.style.cssText='box-sizing:border-box;width:min(680px,calc(100vw - 20px));max-width:680px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:auto;border:1px solid #dfe5ef;border-radius:16px;padding:clamp(14px,3vw,26px);color:#243247;background:#fff;box-shadow:0 22px 70px #11182733';
+    const heading=view.d.firstElementChild;
+    if(heading)heading.style.cssText='font-size:clamp(19px,4vw,23px);line-height:1.25;margin:0 0 12px';
+    const note=node('div');
+    note.style.cssText='padding:11px 13px;background:#fef3c7;color:#713f12;border:1px solid #fde68a;border-radius:10px;margin:12px 0 18px;font-size:13px;line-height:1.5';
+    note.textContent='VISTA PREVIA · Sin conexión fiscal. Podés completar los campos para conocer el formulario, pero no se guardan ni se envían. La emisión ARCA continúa desactivada.';
+    view.d.append(note);
+    function section(title,help){
+      const wrap=node('section');wrap.style.cssText='margin:18px 0;padding:15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px';
+      const h=node('h3',title);h.style.cssText='font-size:16px;margin:0 0 6px;color:#1e3a8a';
+      const p=node('p',help);p.style.cssText='font-size:12px;color:#475569;line-height:1.5;margin:0 0 13px';
+      wrap.append(h,p);view.d.append(wrap);return wrap;
+    }
+    function field(container,key,title,type,options,placeholder,help){
+      const row=node('label');row.style.cssText='display:block;margin:13px 0';
+      const label=node('span',title);label.style.cssText='display:block;font-weight:600;font-size:13px;margin-bottom:5px';
+      const input=node(options?'select':'input');input.name=key;
+      if(options){
+        const placeholderOption=node('option','Seleccionar…');placeholderOption.value='';input.append(placeholderOption);
+        for(const [value,title] of options){const option=node('option',title);option.value=value;input.append(option)}
+        input.value='';
+      }else{
+        input.type=type;input.value='';if(placeholder)input.placeholder=placeholder;
+        if(key==='issuer'){input.inputMode='numeric';input.maxLength=11;input.autocomplete='off'}
+        if(key==='point'){input.min='1';input.max='99998';input.step='1';input.inputMode='numeric'}
+        if(key==='businessName'||key==='taxAddress')input.maxLength=160;
+      }
+      input.style.cssText='box-sizing:border-box;display:block;width:100%;min-height:42px;padding:9px 10px;font-size:14px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a';
+      row.append(label,input);
+      if(help){const caption=node('small',help);caption.style.cssText='display:block;font-size:12px;color:#64748b;margin-top:5px;line-height:1.5';row.append(caption)}
+      container.append(row);return input;
+    }
+    const primary=section('1. Datos fiscales del comercio','Son los cuatro datos que identifica y controla el perfil fiscal de VICORA.');
+    const issuer=field(primary,'issuer','CUIT emisor · 11 números','text',null,'Ej.: 20XXXXXXXXX','Debe ser del propio comercio, sin guiones.');
+    const condition=field(primary,'condition','Condición frente al IVA',null,[['MONOTRIBUTO','Monotributista'],['RI','Responsable inscripto'],['EXENTO','Exento']],null,'Los tipos A/B/C se determinan luego con la condición verificada por ARCA.');
+    const point=field(primary,'point','Punto de venta habilitado para Web Services','number',null,'Ej.: 4','No inventes ni reutilices un punto de Comprobantes en línea; debe estar habilitado para WSFE.');
+    const representation=field(primary,'representation','Forma de representación',null,[['PROPIA','Emisión con representación propia'],['DELEGADA','Emisión por representante autorizado']],null,'La relación con WSFE se verifica por un canal privado.');
+    const invoice=section('2. Datos para el comprobante','Se necesitan para completar y revisar la presentación de las facturas; algunos requisitos varían según el contribuyente.');
+    const businessName=field(invoice,'businessName','Nombre o razón social','text',null,'Nombre registrado del emisor');
+    field(invoice,'taxAddress','Domicilio fiscal','text',null,'Calle, número, ciudad y provincia');
+    field(invoice,'grossIncome','Ingresos Brutos o condición de exención','text',null,'Inscripción / exento según corresponda');
+    field(invoice,'activityStart','Inicio de actividades','date',null,null,'Según constancia fiscal del comercio.');
+    const requirements=section('3. Autorizaciones que tiene que gestionar el titular','VICORA no puede autorizarse automáticamente en nombre de un tercero.');
+    const checklist=[
+      'CUIT y condición fiscal reales del comercio',
+      'Punto de venta habilitado para Factura Electrónica por Web Services (WSFE)',
+      'Certificado digital de producción y relación autorizada con el servicio wsfe',
+      'Delegación a la identidad técnica que corresponda, si es representación de terceros',
+      'Número fiscal vigente de cada punto/tipo, a conciliar con ARCA antes de emitir'
+    ];
+    const list=node('ul');list.style.cssText='margin:8px 0 10px;padding-left:21px;line-height:1.6;font-size:13px';
+    for(const item of checklist)list.append(node('li',item));
+    requirements.append(list);
+    const arcaLink=node('a','Ver instrucciones oficiales de certificados ARCA');
+    arcaLink.href='https://www.arca.gob.ar/ws/documentacion/certificados.asp';arcaLink.target='_blank';arcaLink.rel='noopener noreferrer';
+    arcaLink.style.cssText='display:inline-block;color:#1d4ed8;font-weight:600;font-size:13px';
+    requirements.append(arcaLink);
+    const warning=node('p','Seguridad: no cargues acá la clave fiscal, certificados privados, Token, Sign ni contraseñas. En el alta efectiva se pedirá reautenticación con la contraseña de VICORA, por canal seguro.');
+    warning.style.cssText='font-size:12px;line-height:1.5;color:#475569;margin:15px 0';
+    view.d.append(warning);
+    const message=node('p');message.setAttribute('role','status');
+    message.style.cssText='font-size:13px;line-height:1.5;color:#334155;min-height:18px;margin:7px 0';
+    const actions=node('div');actions.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:14px';
+    function action(title,kind){
+      const b=node('button',title);b.type='button';
+      b.style.cssText='min-height:42px;padding:10px 13px;border-radius:9px;font-weight:600;cursor:pointer;border:1px solid #cbd5e1;'+(kind==='primary'?'background:#1d4ed8;color:white;border-color:#1d4ed8':'background:white;color:#1e293b');
+      actions.append(b);return b;
+    }
+    const check=action('Revisar datos ingresados','primary');
+    check.onclick=()=>{
+      const errors=[];
+      if(!/^[0-9]{11}$/.test(issuer.value.trim()))errors.push('CUIT: ingresá 11 números sin guiones.');
+      if(!['MONOTRIBUTO','RI','EXENTO'].includes(condition.value))errors.push('Seleccioná la condición frente al IVA.');
+      const n=Number(point.value);
+      if(!/^[0-9]{1,5}$/.test(String(point.value))||!Number.isInteger(n)||n<1||n>99998)errors.push('Punto de venta: número válido entre 1 y 99998.');
+      if(!['PROPIA','DELEGADA'].includes(representation.value))errors.push('Seleccioná la representación.');
+      if(!businessName.value.trim())errors.push('Indicá el nombre o razón social.');
+      message.textContent=errors.length
+        ? 'Faltan datos: '+errors.join(' ')
+        : 'Formato revisado. Esto NO comprueba CUIT, punto ni representación ante ARCA y NO guarda los datos.';
+      message.style.color=errors.length?'#991b1b':'#166534';
+    };
+    const copy=action('Copiar requisitos para el cliente');
+    copy.onclick=async()=>{
+      const text=['VICORA · Requisitos para facturación electrónica',...checklist,
+        'Datos que debe informar: CUIT, condición IVA, punto WSFE, representación, nombre o razón social, domicilio fiscal, Ingresos Brutos/exención, inicio de actividades.',
+        'Nunca enviar clave fiscal, contraseña ni certificados privados por WhatsApp.'].join('\n- ');
+      try{
+        if(!root.navigator?.clipboard?.writeText)throw new Error('NO_CLIPBOARD');
+        await root.navigator.clipboard.writeText(text);
+        message.textContent='Lista de requisitos copiada. No se copiaron los datos ingresados.';
+      }catch(_){message.textContent='No se pudo copiar automáticamente. Podés copiar el listado del apartado 3.';}
+    };
+    view.close.style.cssText='min-height:42px;padding:10px 13px;border-radius:9px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;cursor:pointer';
+    actions.append(view.close);view.d.append(message,actions);view.d.showModal();
+  }
   if(config?.showSetup===true && button && role==='ADMINISTRADOR'){
     button.hidden=false;
     button.onclick=()=>{
       if(generation!==installation)return;
-      const view=dialog('Configuración · Facturación electrónica');
-      view.d.append(
-        node('p','Estado: preparación disponible; emisión fiscal pendiente de autorización. No se generan CAE ni facturas desde esta pantalla.'),
-        node('p','VICORA conserva el ticket común NO FISCAL para todas las ventas.')
-      );
-      const list=node('ol');
-      for(const step of [
-        'El titular del primer comercio autoriza su CUIT, punto de venta y representación ante ARCA.',
-        'VICORA verifica el certificado, los permisos y la numeración real de ese comercio, sin reutilizar números.',
-        'Tras la aceptación operativa, el administrador configura la facturación y el vendedor puede elegir factura ARCA por venta.'
-      ])list.append(node('li',step));
-      view.d.append(list,node('p','No ingreses contraseñas fiscales ni certificados aquí. Cuando se habilite la conexión segura aparecerá el formulario del comercio.'),view.close);
-      view.d.showModal();
+      offlineSetup();
     };
   }
   if(config?.enabled!==true)return;
