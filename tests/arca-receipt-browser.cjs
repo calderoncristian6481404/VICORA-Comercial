@@ -11,7 +11,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    await page.route('**/*',async route=>{
     const req=route.request(),url=new URL(req.url());
     if(url.origin!=='https://fiscal.invalid')throw Error('UNEXPECTED_EXTERNAL_REQUEST');
-    calls.push([req.method(),url.pathname]);
+    calls.push([req.method(),url.pathname,req.postData()]);
     const value=url.pathname.endsWith('/capabilities')?{preparation_enabled:false,configuration_enabled:false,document_types:[],completion_enabled:false,can_send:false,runtime_enabled:false}:verified?{status:'AUTORIZADO_PROD_VERIFICADO',operation:'00000000-0000-4000-8000-000000000001',environment:'PRODUCCION',authorization_verified:true,document_available:true,receipt:{point:4,kind:11,number:7,cae:'12345678901234',expiry:'20261203',date:'2026-11-23'},can_send:false,runtime_enabled:false}:{status:'RESULTADO_INCIERTO',operation:'00000000-0000-4000-8000-000000000001',authorization_verified:false,document_available:false,can_send:false,runtime_enabled:false};
     await route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify(value)});
    });
@@ -26,7 +26,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    await page.evaluate(()=>window.vicoraArcaConsultarEstado({saleRef:'SYNTHETIC_SALE'}));
    assert.equal(await page.getByRole('button',{name:'Descargar PDF A4',exact:true}).count(),0);
    assert.match(await page.locator('dialog[open]').innerText(),/No reenviar/);
-   assert.ok(calls.every(([method])=>method==='GET'),'status display cannot create a sale or invoice');
+   assert.ok(calls.every(([method,path,body])=>(method==='GET'&&path.endsWith('/capabilities'))||(method==='POST'&&path.endsWith('/status')&&body===JSON.stringify({saleRef:'SYNTHETIC_SALE'}))),'status display must only call capabilities and the existing read-side status endpoint');
    scenarios++;await page.close();
   }
   console.log(JSON.stringify({status:'PASS',scenarios,real_browser:true,synthetic_only:true,mobile:true,desktop:true,commercial_writes:0,can_send:false,runtime_enabled:false}));
