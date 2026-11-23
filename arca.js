@@ -110,7 +110,7 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
 }
 function node(tag,text){const e=document.createElement(tag);if(text)e.textContent=text;return e;}
 function dialog(title){
-  const d=node('dialog');d.style.cssText='width:min(520px,90vw);max-height:90vh;overflow:auto;border:0;border-radius:14px;padding:24px';
+  const d=node('dialog');d.style.cssText='box-sizing:border-box;width:min(520px,calc(100vw - 20px));max-width:calc(100vw - 20px);max-height:90vh;overflow:auto;border:0;border-radius:14px;padding:24px';
   d.append(node('h2',title));const close=node('button','Cerrar');close.type='button';close.onclick=()=>d.close();d.addEventListener('close',()=>d.remove());document.body.append(d);return {d,close};
 }
 root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
