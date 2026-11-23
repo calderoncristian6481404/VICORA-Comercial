@@ -18,6 +18,12 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
       throw new Error('Un comprobante pendiente no autoriza documentos fiscales.');
     if(['PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status)&&value.environment!=='PRODUCCION')
       throw new Error('Estado de producción no verificable.');
+    if(value.receipt!==undefined){
+      const r=value.receipt,keys=['point','kind','number','cae','expiry','date'];
+      if(value.status!=='AUTORIZADO_PROD_VERIFICADO'||!verified||!r||typeof r!=='object'||Object.keys(r).sort().join('|')!==keys.sort().join('|')||!Number.isInteger(r.point)||r.point<1||r.point>99998||![1,6,11].includes(r.kind)||!Number.isInteger(r.number)||r.number<1||r.number>99999999||typeof r.cae!=='string'||!/^[0-9]{14}$/.test(r.cae)||/^0+$/.test(r.cae)||typeof r.expiry!=='string'||!/^[0-9]{8}$/.test(r.expiry)||typeof r.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(r.date))throw new Error('Datos del comprobante no verificables.');
+      const validDate=(v)=>{const d=new Date(v+'T00:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===v;};
+      if(!validDate(r.date)||!validDate(r.expiry.slice(0,4)+'-'+r.expiry.slice(4,6)+'-'+r.expiry.slice(6)))throw new Error('Fechas del comprobante no verificables.');
+    }
     return value;
   }
   async function session(){const {data,error}=await db.auth.getSession();if(error||!data?.session?.access_token)throw new Error('Iniciá sesión nuevamente.');return data.session;}
@@ -332,6 +338,10 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     const labels={NO_DISPONIBLE:'No hay una preparación disponible.',PREPARADO_NO_EMITIDO:'Preparada: no emitida, sin CAE.',EMISION_BLOQUEADA:'Preparada; autorización fiscal deshabilitada.',RESULTADO_INCIERTO:'Resultado incierto. No reenviar; requiere conciliación.',BLOQUEADO:'Operación bloqueada. Requiere revisión.',CONFLICTO_BLOQUEADO:'Respuestas contradictorias. Operación bloqueada sin reenvío.',RECHAZADO:'Solicitud rechazada. No se reenvía automáticamente.',DEMO_CONCILIADO_NO_FISCAL:'Ensayo conciliado. NO FISCAL: no tiene CAE auténtico ni documento fiscal.',AUTORIZADO_HOMO_VERIFICADO:'Autorización de homologación verificada; no es emisión de producción.',PENDIENTE_CONCILIACION:'Solicitud fiscal registrada; falta verificar el resultado con ARCA. No reenviar.',CONSULTA_REGISTRADA:'Consulta registrada; se está verificando el comprobante.',AUTORIZADO_PROD_VERIFICADO:'Factura ARCA verificada en producción; CAE validado mediante consulta independiente.'};
     view.d.append(node('p',labels[value.status]||'Preparada, sin emisión.'),node('p','La venta ya fue registrada una sola vez. El ticket VICORA es NO FISCAL.'));
     if(['AUTORIZADO_HOMO_VERIFICADO','AUTORIZADO_PROD_VERIFICADO'].includes(value.status)&&value.authorization_verified===true&&value.document_available===true){
+      if(value.status==='AUTORIZADO_PROD_VERIFICADO'&&value.receipt){
+        const r=value.receipt;
+        view.d.append(node('p','Factura '+({1:'A',6:'B',11:'C'}[r.kind])+' '+String(r.point).padStart(5,'0')+'-'+String(r.number).padStart(8,'0')),node('p','CAE: '+r.cae),node('p','Vencimiento CAE: '+r.expiry.slice(6)+'/'+r.expiry.slice(4,6)+'/'+r.expiry.slice(0,4)));
+      }
       for(const format of ['A4','80mm']){
         const download=node('button',format==='A4'?'Descargar PDF A4':'Descargar / reimprimir 80 mm');download.type='button';
         download.onclick=async()=>{download.disabled=true;try{const blob=await api.document(body,format),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='vicora-'+(value.environment==='PRODUCCION'?'factura-arca':'homologacion')+'-'+format+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(_){view.d.append(node('p','No se pudo verificar el documento. No vuelvas a registrar la venta.'));}finally{download.disabled=false;}};
