@@ -18,6 +18,10 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
       throw new Error('Un comprobante pendiente no autoriza documentos fiscales.');
     if(['PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status)&&value.environment!=='PRODUCCION')
       throw new Error('Estado de producción no verificable.');
+    // A production success without its own verified CAE receipt is incomplete.
+    // Never show a fiscal download solely because success booleans were supplied.
+    if(value.status==='AUTORIZADO_PROD_VERIFICADO'&&value.receipt===undefined)
+      throw new Error('Falta el comprobante fiscal de producción verificable.');
     if(value.receipt!==undefined){
       const r=value.receipt,keys=['point','kind','number','cae','expiry','date'];
       if(value.status!=='AUTORIZADO_PROD_VERIFICADO'||!verified||!r||typeof r!=='object'||Object.keys(r).sort().join('|')!==keys.sort().join('|')||!Number.isInteger(r.point)||r.point<1||r.point>99998||![1,6,11].includes(r.kind)||!Number.isInteger(r.number)||r.number<1||r.number>99999999||typeof r.cae!=='string'||!/^[0-9]{14}$/.test(r.cae)||/^0+$/.test(r.cae)||typeof r.expiry!=='string'||!/^[0-9]{8}$/.test(r.expiry)||typeof r.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(r.date))throw new Error('Datos del comprobante no verificables.');
