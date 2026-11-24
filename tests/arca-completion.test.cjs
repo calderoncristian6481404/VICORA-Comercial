@@ -5,6 +5,8 @@ const operation='00000000-0000-4000-8000-000000000001',body={saleRef:'SALE'};
 const db={auth:{getSession:async()=>({data:{session:{access_token:'SYNTHETIC_SESSION'}}})}};
 const caps={completion_enabled:true,completion_mode:'LAB_TLS',preparation_enabled:true,configuration_enabled:false,document_types:[11],can_send:false,runtime_enabled:false};
 const uncertain={status:'RESULTADO_INCIERTO',operation,environment:'LAB_TLS',authorization_verified:false,document_available:false,can_send:false,runtime_enabled:false};
+// Deliberately synthetic: never a CAE issued by ARCA.
+const fixtureReceipt={point:4,kind:11,number:1,cae:'12345678901234',expiry:'20261215',date:'2026-11-24'};
 function api(fn){return client({db,apiOrigin:'https://fiscal.invalid',fetchImpl:fn});}
 function ok(x){return {ok:true,json:async()=>x};}
 test('emitter-wide configuration is queried, not supplied or enabled for each sale',async()=>{
@@ -39,7 +41,7 @@ test('synthetic fixture exercises PDF MIME/header recheck, not an authentic CAE 
 });
 
 test('real production CAE is downloadable only with matching independently verified status',async()=>{
- const verified={status:'AUTORIZADO_PROD_VERIFICADO',operation,environment:'PRODUCCION',authorization_verified:true,document_available:true,can_send:false,runtime_enabled:false};
+ const verified={status:'AUTORIZADO_PROD_VERIFICADO',operation,environment:'PRODUCCION',authorization_verified:true,document_available:true,receipt:fixtureReceipt,can_send:false,runtime_enabled:false};
  const calls=[];const c=api(async(url,opts)=>{
   calls.push(url);
   if(url.endsWith('/status'))return ok(verified);
@@ -48,6 +50,13 @@ test('real production CAE is downloadable only with matching independently verif
  });
  const result=await c.document(body,'A4');assert.equal(result.type,'');assert.deepEqual(calls.map(x=>x.split('/').at(-1)),['status','document']);
  for(const forged of [
+  {...verified,receipt:undefined},
+  {...verified,receipt:{...fixtureReceipt,cae:'0'.repeat(14)}},
+  {...verified,receipt:{...fixtureReceipt,kind:99}},
+  {...verified,receipt:{...fixtureReceipt,number:0}},
+  {...verified,receipt:{...fixtureReceipt,date:'2026-02-30'}},
+  {...verified,receipt:{...fixtureReceipt,expiry:'20260230'}},
+  {...verified,receipt:{...fixtureReceipt,untrusted:'x'}},
   {...verified,environment:'HOMOLOGACION'},
   {...verified,authorization_verified:false},
   {...verified,document_available:false},
@@ -64,4 +73,13 @@ test('production mode only sends an existing saleRef; never allows direct reserv
  assert.deepEqual(calls.filter(v=>v[1].body).map(v=>JSON.parse(v[1].body)),[body,body]);
  assert.equal(calls.filter(v=>/\/(emit|reserve)$/.test(v[0])).length,0);
  assert.equal(calls.filter(v=>/\/request$/.test(v[0])).length,1);
+});
+
+test('verified-production flags without exact receipt never permit PDF or status',async()=>{
+ const incomplete={status:'AUTORIZADO_PROD_VERIFICADO',operation,environment:'PRODUCCION',authorization_verified:true,document_available:true,can_send:false,runtime_enabled:false};
+ let downloads=0;
+ const c=api(async(url)=>{if(url.endsWith('/document'))downloads++;return ok(incomplete);});
+ await assert.rejects(c.status(body),/comprobante fiscal de producción/);
+ await assert.rejects(c.document(body,'A4'),/comprobante fiscal de producción/);
+ assert.equal(downloads,0);
 });

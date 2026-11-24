@@ -1,0 +1,11 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const {client}=require('../arca.js');
+const receipt={point:4,kind:11,number:7,cae:'12345678901234',expiry:'20261203',date:'2026-11-23'};
+const state={status:'AUTORIZADO_PROD_VERIFICADO',operation:'00000000-0000-4000-8000-000000000001',environment:'PRODUCCION',authorization_verified:true,document_available:true,can_send:false,runtime_enabled:false,receipt};
+const db={auth:{getSession:async()=>({data:{session:{access_token:'SYNTHETIC'}}})}};
+const api=value=>client({db,apiOrigin:'https://fiscal.invalid',fetchImpl:async()=>({ok:true,json:async()=>value})});
+test('verified production summary survives status without transmitting fiscal input',async()=>{const actual=await api(state).status({saleRef:'SALE'});assert.deepEqual(actual.receipt,receipt);});
+test('pending MOCK or HOMO cannot carry a production receipt summary',async()=>{for(const status of ['RESULTADO_INCIERTO','DEMO_CONCILIADO_NO_FISCAL','AUTORIZADO_HOMO_VERIFICADO'])await assert.rejects(api({...state,status,environment:status.startsWith('AUTORIZADO_HOMO')?'HOMOLOGACION':'PRODUCCION'}).status({saleRef:'SALE'}));});
+test('malformed amounts dates CAE number and extra secret fields reject summary',async()=>{for(const patch of [{number:true},{number:0},{point:0},{kind:13},{cae:'00000000000000'},{cae:'<script>'},{expiry:'20260230'},{date:'2026-02-30'},{Token:'MUST_NOT_DISPLAY'}])await assert.rejects(api({...state,receipt:{...receipt,...patch}}).status({saleRef:'SALE'}));});
+test('sale dialog renders official number and CAE with text nodes and retains formats',()=>{const source=fs.readFileSync(require.resolve('../arca.js'),'utf8');assert.ok(source.includes("'CAE: '+r.cae"));assert.ok(source.includes("String(r.number).padStart(8,'0')"));assert.ok(source.includes("for(const format of ['A4','80mm'])"));assert.ok(!source.includes("innerHTML=r.cae"));});
