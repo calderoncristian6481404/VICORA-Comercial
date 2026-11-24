@@ -1,6 +1,7 @@
 /* Executes the actual UI installer/client against synthetic HTTP, never ARCA. */
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const operation='00000000-0000-4000-8000-000000000001';
+const fixtureReceipt={point:4,kind:11,number:1,cae:'12345678901234',expiry:'20261215',date:'2026-11-24'};
 function result(status,extra={}){return {status,operation,can_send:false,runtime_enabled:false,authorization_verified:false,document_available:false,...extra};}
 async function ui(state,{ready=true,failStatus=false,documentType=11,switchSession=false}={}){
  const calls=[],dialogs=[],session={token:'SYNTHETIC_ONLY'};
@@ -78,7 +79,7 @@ test('disabling/reinstalling module invalidates old callbacks and clears adminis
 });
 
 test('production CAE from server may show print options without another fiscal write',async()=>{
- const s=await ui(result('AUTORIZADO_PROD_VERIFICADO',{environment:'PRODUCCION',authorization_verified:true,document_available:true}),{ready:false});
+ const s=await ui(result('AUTORIZADO_PROD_VERIFICADO',{environment:'PRODUCCION',authorization_verified:true,document_available:true,receipt:fixtureReceipt}),{ready:false});
  await s.browser.vicoraArcaIniciarEmision({saleRef:'SALE'});
  assert.deepEqual(s.calls.map(x=>x[0]),['capabilities','status']);
  assert.ok(s.dialogs[0].children.some(c=>c.textContent==='Descargar PDF A4'));
@@ -90,4 +91,11 @@ test('unverified production consultation cannot print or pretend it received CAE
  assert.ok(s.dialogs[0].children.every(c=>c.textContent!=='Descargar PDF A4'));
  assert.ok(s.dialogs[0].children.some(c=>c.textContent==='Consultar y conciliar (sin reenviar)'));
  assert.ok(!s.calls.some(x=>['request','prepare'].includes(x[0])));
+});
+
+test('production success lacking signed fiscal receipt cannot show print controls',async()=>{
+ const s=await ui(result('AUTORIZADO_PROD_VERIFICADO',{environment:'PRODUCCION',authorization_verified:true,document_available:true}),{ready:false});
+ await assert.rejects(s.browser.vicoraArcaIniciarEmision({saleRef:'SALE'}),/comprobante fiscal de producción/);
+ assert.equal(s.dialogs.length,0);
+ assert.ok(s.calls.every(x=>!['prepare','request','reconcile'].includes(x[0])));
 });
