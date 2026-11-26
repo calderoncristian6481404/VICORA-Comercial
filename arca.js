@@ -318,6 +318,16 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     };
   }
   if(config?.enabled!==true)return;
+  // Pilot is opt-in per authenticated business. The server independently enforces tenant scope.
+  if(config.pilotBusiness!==undefined){
+  if(typeof config.pilotBusiness!=='string'||!config.pilotBusiness||role!=='ADMINISTRADOR')return;
+  try{
+    const {data:auth,error:authError}=await db.auth.getUser();
+    if(authError||!auth?.user?.id||generation!==installation)return;
+    const {data:members,error:memberError}=await db.from('usuarios').select('id_negocio,rol,estado').eq('auth_user_id',auth.user.id).limit(2);
+    if(memberError||!Array.isArray(members)||members.length!==1||members[0].id_negocio!==config.pilotBusiness||members[0].rol!=='ADMINISTRADOR'||members[0].estado!=='ACTIVO'||generation!==installation)return;
+  }catch(_){return;}
+  }
   let api;try{api=client({db,apiOrigin:config.apiOrigin});}catch(_){return;}
   async function refresh(){
     root.VICORA_ARCA_UI_HABILITADA=false;

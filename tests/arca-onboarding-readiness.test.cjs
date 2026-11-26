@@ -55,12 +55,14 @@ test('untrusted API origin still presents offline preview without authorization 
  const s=setup({enabled:true,apiOrigin:'http://example.invalid'});await s.browser.vicoraArcaInstalar({db:s.db,role:'ADMINISTRADOR'});
  assert.equal(s.button.hidden,false);s.button.onclick();assert.equal(s.events.dialogs.length,1);assert.equal(s.events.calls,0);
 });
-test('production config remains OFF and script cache updated',()=>{
+test('production config is limited to the selected pilot and scripts share updated cache',()=>{
  const cfg=fs.readFileSync(require.resolve('../arca.config.js'),'utf8');
  const page=fs.readFileSync(require.resolve('../index.html'),'utf8');
- assert.ok(cfg.includes("enabled:false,apiOrigin:'',showSetup:true"));
- assert.ok(page.includes('arca.js?v=20261121-solicitud-cliente-v1'));
- assert.ok(page.includes('arca.config.js?v=20261121-formulario-v1'));
+ const context={window:{}};vm.runInNewContext(cfg,context);
+ const config=context.window.VICORA_ARCA_CONFIG;
+ assert.equal(config.enabled,true);assert.equal(config.showSetup,true);assert.equal(new URL(config.apiOrigin).protocol,'https:');assert.equal(config.pilotBusiness,'NEG-1DF6A0578814464E8D855907BFC2DD7F');
+ assert.ok(page.includes('arca.js?v=20261126-vitalia-pilot-v1'));
+ assert.ok(page.includes('arca.config.js?v=20261126-vitalia-pilot-v1'));
  assert.ok(!code.includes('localStorage'));
  assert.ok(!code.includes('/v1/fiscal/emit'));
  assert.ok(code.includes("vicora_arca_solicitudes_comercio"));
@@ -132,4 +134,15 @@ test('failed membership checks cannot save any onboarding details',async()=>{
  await s.browser.vicoraArcaInstalar({db:s.db,role:'ADMINISTRADOR'});s.button.onclick();
  await button(s.events.dialogs[0],'Guardar borrador').onclick();
  assert.deepEqual(actions,['usuarios']);assert.ok(text(s.events.dialogs[0]).includes('No se pudo guardar'));
+});
+
+test('pilot checks actual membership before any fiscal connection',async()=>{
+ for(const [role,business,expected] of [['ADMINISTRADOR','PILOT',1],['ADMINISTRADOR','OTHER',0],['VENDEDOR','PILOT',0]]){
+  const s=setup({enabled:true,apiOrigin:'https://fiscal.invalid',role});s.browser.VICORA_ARCA_CONFIG.pilotBusiness='PILOT';
+  s.db.auth.getUser=async()=>({data:{user:{id:'SYNTHETIC'}},error:null});
+  s.db.auth.getSession=async()=>({data:{session:{access_token:'SYNTHETIC'}}});
+  s.db.from=()=>({select:()=>({eq:()=>({limit:async()=>({data:[{id_negocio:business,rol:role,estado:'ACTIVO'}],error:null})})})});
+  await s.browser.vicoraArcaInstalar({db:s.db,role});assert.equal(s.events.calls,expected);assert.equal(s.browser.VICORA_ARCA_UI_HABILITADA,false);
+  assert.equal(typeof s.browser.vicoraArcaIniciarEmision,expected?'function':'undefined');
+ }
 });
