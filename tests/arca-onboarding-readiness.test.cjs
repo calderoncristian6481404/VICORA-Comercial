@@ -61,7 +61,7 @@ test('production config is limited to the selected pilot and scripts share updat
  const context={window:{}};vm.runInNewContext(cfg,context);
  const config=context.window.VICORA_ARCA_CONFIG;
  assert.equal(config.enabled,true);assert.equal(config.showSetup,true);assert.equal(new URL(config.apiOrigin).protocol,'https:');assert.equal(config.pilotBusiness,'NEG-1DF6A0578814464E8D855907BFC2DD7F');
- assert.ok(page.includes('arca.js?v=20261126-vitalia-pilot-v1'));
+ assert.ok(page.includes('arca.js?v=20261126-daily-candidate-v1'));
  assert.ok(page.includes('arca.config.js?v=20261126-vitalia-pilot-v1'));
  assert.ok(!code.includes('localStorage'));
  assert.ok(!code.includes('/v1/fiscal/emit'));
@@ -136,8 +136,8 @@ test('failed membership checks cannot save any onboarding details',async()=>{
  assert.deepEqual(actions,['usuarios']);assert.ok(text(s.events.dialogs[0]).includes('No se pudo guardar'));
 });
 
-test('pilot checks actual membership before any fiscal connection',async()=>{
- for(const [role,business,expected] of [['ADMINISTRADOR','PILOT',1],['ADMINISTRADOR','OTHER',0],['VENDEDOR','PILOT',0]]){
+test('authenticated membership precedes capability lookup; unavailable capabilities never enable fiscal UI',async()=>{
+ for(const [role,business,expected] of [['ADMINISTRADOR','PILOT',1],['ADMINISTRADOR','OTHER',1],['VENDEDOR','PILOT',1]]){
   const s=setup({enabled:true,apiOrigin:'https://fiscal.invalid',role});s.browser.VICORA_ARCA_CONFIG.pilotBusiness='PILOT';
   s.db.auth.getUser=async()=>({data:{user:{id:'SYNTHETIC'}},error:null});
   s.db.auth.getSession=async()=>({data:{session:{access_token:'SYNTHETIC'}}});

@@ -14,7 +14,7 @@ const {chromium}=require('playwright');const assert=require('node:assert/strict'
   assert.equal(await page.locator('input[name=password]').inputValue(),'');await page.getByRole('button',{name:'Cerrar',exact:true}).click();
   await page.evaluate(async()=>{await Promise.all([venGuardar(),venGuardar()]);});
   assert.deepEqual(await page.evaluate(()=>window.counts),{sales:1,details:1,confirm:1,stock:1,cash:1});
-  await page.locator('#venElegirArca').click();await page.getByRole('heading',{name:'Factura preparada, no emitida'}).waitFor();
+  await page.locator('#venElegirArca').click();await page.getByRole('heading',{name:'Estado del comprobante'}).waitFor();
   assert.ok((await page.locator('dialog').innerText()).includes('Tipo C'));assert.ok((await page.locator('dialog').innerText()).includes('No hay CAE verificado'));
   await page.getByRole('button',{name:'Cerrar',exact:true}).click();
   await page.evaluate(async()=>{await venEmitirFiscalDesdeVenta('SALE');});
@@ -22,8 +22,8 @@ const {chromium}=require('playwright');const assert=require('node:assert/strict'
   await page.getByRole('button',{name:'Cerrar',exact:true}).click();
   await page.setViewportSize({width:1280,height:800});
   await page.evaluate(async()=>{await window.vicoraArcaConsultarEstado({saleRef:'SALE'});});
-  await page.getByRole('heading',{name:'Estado de preparación fiscal'}).waitFor();
-  assert.ok((await page.locator('dialog').innerText()).includes('sin emisión ni CAE'));
+  await page.getByRole('heading',{name:'Estado del comprobante'}).waitFor();
+  assert.ok((await page.locator('dialog').innerText()).includes('sin CAE'));
   await page.getByRole('button',{name:'Cerrar',exact:true}).click();
   await page.evaluate(()=>{window.VICORA_ARCA_UI_HABILITADA=false;});
   assert.equal(await page.evaluate(()=>venArcaDisponible()),false);

@@ -18,6 +18,10 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
       throw new Error('Un comprobante pendiente no autoriza documentos fiscales.');
     if(['PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status)&&value.environment!=='PRODUCCION')
       throw new Error('Estado de producción no verificable.');
+    if(value.receipt!==undefined&&value.receipt!==null){
+      const r=value.receipt;
+      if(!verified||typeof r!=='object'||!Number.isInteger(r.number)||r.number<1||r.number>99999999||!Number.isInteger(r.point)||r.point<1||r.point>99998||![1,3,6,8,11,13].includes(r.kind)||typeof r.cae!=='string'||!/^\d{14}$/.test(r.cae)||typeof r.expiry!=='string'||!/^\d{8}$/.test(r.expiry)||r.cae==='00000000000000'||Object.keys(r).sort().join(',')!=='cae,date,expiry,kind,number,point'||typeof r.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(r.date))throw new Error('Datos del comprobante no verificables.');
+    }
     return value;
   }
   async function session(){const {data,error}=await db.auth.getSession();if(error||!data?.session?.access_token)throw new Error('Iniciá sesión nuevamente.');return data.session;}
@@ -81,6 +85,23 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
         const blob=await response.blob();if(blob.size>8*1024*1024||await blob.slice(0,5).text()!=='%PDF-')throw new Error('Documento fiscal no verificable.');return blob;
       }catch(_){throw new Error('Documento fiscal no disponible. La venta no cambia.');}finally{clearTimeout(timer);}
     },
+    async taxSettings(){return request('settings','GET',null,(await session()).access_token);},
+    async saveTaxSettings(version,data){
+      if(!Number.isSafeInteger(version)||version<0||!data||typeof data!=='object')throw new Error('Datos fiscales inválidos.');
+      return request('settings','PUT',{version,data},(await session()).access_token);
+    },
+    async authorizeAndConfirm(body){
+      // One explicit POST only. Every continuation is a read/consultation.
+      let value;
+      try{value=await this.requestAuthorization(body);}catch(error){
+        try{value=await this.status(body);}catch(_){throw error;}
+        if(!['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA','AUTORIZADO_PROD_VERIFICADO'].includes(value.status))throw error;
+      }
+      for(let n=0;n<3&&['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status);n++){
+        try{value=await this.reconcile(body);}catch(_){break;}
+      }
+      return value;
+    },
     async profile(){return request('config','GET',null,(await session()).access_token);},
     async saveProfile(profile,reauthenticate){
       const s=await session(),fresh=await reauthenticate();
@@ -101,6 +122,34 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
       return value;
     }
   };
+}
+async function taxSetup(api,db,business){
+  const v=dialog('Datos fiscales para facturación opcional'),msg=node('p');msg.setAttribute('role','status');
+  v.d.append(node('p','Completá datos auténticos. No se supone IVA 21%. Estos datos no habilitan por sí solos a emitir ante ARCA.'),msg);
+  try{
+    const result=await api.taxSettings();let version=result.version,data=result.data;
+    const [customers,products]=await Promise.all([db.from('clientes').select('id_cliente,nombre,apellido,documento').eq('id_negocio',business).order('id_cliente').limit(1000),db.from('productos').select('id_producto,nombre').eq('id_negocio',business).order('id_producto').limit(1000)]);
+    if(customers.error||products.error)throw new Error();
+    function select(label,options){const wrap=node('label',label),s=node('select');s.style.cssText='display:block;width:100%;margin:8px 0 16px;min-height:42px';for(const [key,label] of options){const o=node('option',label);o.value=key;s.append(o);}wrap.append(s);v.d.append(wrap);return s;}
+    const customer=select('Cliente existente',[['','Elegí un cliente'],...(customers.data||[]).map(c=>[c.id_cliente,[c.nombre,c.apellido,c.documento].filter(Boolean).join(' · ')])]);
+    const documentType=select('Documento fiscal',[['','Elegí el tipo'],['80','CUIT'],['96','DNI']]);
+    const condition=select('Condición frente al IVA del receptor',[['','Elegí la condición'],['1','Responsable inscripto'],['4','Exento'],['5','Consumidor final'],['6','Monotributo'],['7','No categorizado'],['13','Monotributista social'],['16','Trabajador independiente promovido']]);
+    customer.onchange=()=>{const old=data.receivers[customer.value];documentType.value=old?String(old.document_type):'';condition.value=old?String(old.tax_condition):'';};
+    const saveCustomer=node('button','Guardar condición del cliente');saveCustomer.type='button';v.d.append(saveCustomer);
+    const product=select('Producto existente',[['','Elegí un producto'],...(products.data||[]).map(p=>[p.id_producto,p.nombre+' · '+p.id_producto])]);
+    const vat=select('Tratamiento IVA del producto',[['','Elegí según su situación fiscal'],['3','0%'],['9','2,5%'],['8','5%'],['4','10,5%'],['5','21%'],['6','27%'],['EXENTO','Exento'],['NO_GRAVADO','No gravado']]);
+    product.onchange=()=>{vat.value=data.products[product.value]===undefined?'':String(data.products[product.value]);};
+    const saveProduct=node('button','Guardar IVA del producto');saveProduct.type='button';v.d.append(saveProduct);
+    async function save(change){saveCustomer.disabled=saveProduct.disabled=true;try{const next=structuredClone(data);change(next);const saved=await api.saveTaxSettings(version,next);version=saved.version;data=saved.data;msg.textContent='Datos fiscales guardados para este comercio. No se emitió ningún comprobante.';}catch(_){msg.textContent='No se pudo confirmar el cambio. Cerrá y consultá nuevamente antes de reintentar.';}finally{saveCustomer.disabled=saveProduct.disabled=false;}}
+    saveCustomer.onclick=()=>{const row=(customers.data||[]).find(c=>c.id_cliente===customer.value);if(!row?.documento||!documentType.value||!condition.value){msg.textContent='Elegí el cliente y completá su documento real desde Clientes.';return;}return save(next=>{next.receivers[row.id_cliente]={source_document:row.documento,document_type:Number(documentType.value),tax_condition:Number(condition.value)};});};
+    saveProduct.onclick=()=>{if(!product.value||!vat.value){msg.textContent='Elegí el producto y su tratamiento IVA.';return;}return save(next=>{next.products[product.value]=['EXENTO','NO_GRAVADO'].includes(vat.value)?vat.value:Number(vat.value);});};
+    const logoLabel=node('label','Logo opcional (PNG/JPEG, máximo 32 KiB)'),logo=node('input');logo.type='file';logo.accept='image/png,image/jpeg';logoLabel.append(logo);v.d.append(logoLabel);
+    const saveLogo=node('button','Guardar logo'),removeLogo=node('button','Quitar logo');saveLogo.type=removeLogo.type='button';v.d.append(saveLogo,removeLogo);
+    saveLogo.onclick=async()=>{const f=logo.files?.[0];if(!f||f.size>32768||!['image/png','image/jpeg'].includes(f.type)){msg.textContent='Elegí un logo PNG o JPEG de hasta 32 KiB.';return;}saveLogo.disabled=true;try{const bytes=new Uint8Array(await f.arrayBuffer());let text='';for(const byte of bytes)text+=String.fromCharCode(byte);await save(next=>{next.branding={logo_base64:btoa(text)};});logo.value='';}finally{saveLogo.disabled=false;}};
+    removeLogo.onclick=()=>save(next=>{delete next.branding;});
+    if((customers.data||[]).length===1000||(products.data||[]).length===1000)v.d.append(node('p','Se muestran los primeros 1000 registros; no se presupone la configuración de otros productos o clientes.'));
+  }catch(_){msg.textContent='Configuración fiscal no disponible. El ticket VICORA sigue funcionando.';}
+  v.d.append(v.close);v.d.showModal();
 }
 function node(tag,text){const e=document.createElement(tag);if(text)e.textContent=text;return e;}
 function dialog(title){
@@ -318,30 +367,33 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     };
   }
   if(config?.enabled!==true)return;
-  // Pilot is opt-in per authenticated business. The server independently enforces tenant scope.
-  if(config.pilotBusiness!==undefined){
-  if(typeof config.pilotBusiness!=='string'||!config.pilotBusiness||role!=='ADMINISTRADOR')return;
+  // Derive the local UI scope from the authenticated account; never an API grant.
+  let business;
   try{
     const {data:auth,error:authError}=await db.auth.getUser();
     if(authError||!auth?.user?.id||generation!==installation)return;
     const {data:members,error:memberError}=await db.from('usuarios').select('id_negocio,rol,estado').eq('auth_user_id',auth.user.id).limit(2);
-    if(memberError||!Array.isArray(members)||members.length!==1||members[0].id_negocio!==config.pilotBusiness||members[0].rol!=='ADMINISTRADOR'||members[0].estado!=='ACTIVO'||generation!==installation)return;
+    if(memberError||!Array.isArray(members)||members.length!==1||members[0].estado!=='ACTIVO'||!['ADMINISTRADOR','VENDEDOR'].includes(members[0].rol)||generation!==installation)return;
+    business=members[0].id_negocio;role=members[0].rol;
+    if(role!=='ADMINISTRADOR'&&button){button.hidden=true;button.onclick=null;}
   }catch(_){return;}
-  }
   let api;try{api=client({db,apiOrigin:config.apiOrigin});}catch(_){return;}
   async function refresh(){
     root.VICORA_ARCA_UI_HABILITADA=false;
     const capability=await api.capabilities();
     if(generation!==installation)throw new Error('La sesión cambió. Volvé a consultar desde la venta.');
+    if(config.pilotBusiness!==undefined&&business!==config.pilotBusiness&&capability.daily_enabled!==true)throw new Error('La conexión fiscal de este comercio todavía no está habilitada.');
     root.VICORA_ARCA_UI_HABILITADA=capability.preparation_enabled===true;
     return capability;
   }
   root.vicoraArcaRefrescarDisponibilidad=refresh;
   async function showStatus(body,value){
     const view=dialog('Estado del comprobante');
+    if([1,6,11].includes(value.document_type))view.d.append(node('p','Tipo '+({1:'A',6:'B',11:'C'})[value.document_type]+' determinado por el servidor fiscal.'));
     const labels={NO_DISPONIBLE:'No hay una preparación disponible.',PREPARADO_NO_EMITIDO:'Preparada: no emitida, sin CAE.',EMISION_BLOQUEADA:'Preparada; autorización fiscal deshabilitada.',RESULTADO_INCIERTO:'Resultado incierto. No reenviar; requiere conciliación.',BLOQUEADO:'Operación bloqueada. Requiere revisión.',CONFLICTO_BLOQUEADO:'Respuestas contradictorias. Operación bloqueada sin reenvío.',RECHAZADO:'Solicitud rechazada. No se reenvía automáticamente.',DEMO_CONCILIADO_NO_FISCAL:'Ensayo conciliado. NO FISCAL: no tiene CAE auténtico ni documento fiscal.',AUTORIZADO_HOMO_VERIFICADO:'Autorización de homologación verificada; no es emisión de producción.',PENDIENTE_CONCILIACION:'Solicitud fiscal registrada; falta verificar el resultado con ARCA. No reenviar.',CONSULTA_REGISTRADA:'Consulta registrada; se está verificando el comprobante.',AUTORIZADO_PROD_VERIFICADO:'Factura ARCA verificada en producción; CAE validado mediante consulta independiente.'};
     view.d.append(node('p',labels[value.status]||'Preparada, sin emisión.'),node('p','La venta ya fue registrada una sola vez. El ticket VICORA es NO FISCAL.'));
     if(['AUTORIZADO_HOMO_VERIFICADO','AUTORIZADO_PROD_VERIFICADO'].includes(value.status)&&value.authorization_verified===true&&value.document_available===true){
+      if(value.receipt){const r=value.receipt;view.d.append(node('p','Comprobante '+String(r.point).padStart(5,'0')+'-'+String(r.number).padStart(8,'0')),node('p','CAE: '+r.cae),node('p','Vencimiento: '+r.expiry.slice(6,8)+'/'+r.expiry.slice(4,6)+'/'+r.expiry.slice(0,4)));}
       for(const format of ['A4','80mm']){
         const download=node('button',format==='A4'?'Descargar PDF A4':'Descargar / reimprimir 80 mm');download.type='button';
         download.onclick=async()=>{download.disabled=true;try{const blob=await api.document(body,format),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='vicora-'+(value.environment==='PRODUCCION'?'factura-arca':'homologacion')+'-'+format+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(_){view.d.append(node('p','No se pudo verificar el documento. No vuelvas a registrar la venta.'));}finally{download.disabled=false;}};
@@ -371,7 +423,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
         value=await api.prepare(body);
       }
       await sameSession();
-      if(['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)&&capability.completion_enabled===true)value=await api.requestAuthorization(body);
+      if(['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)&&capability.completion_enabled===true)value=await api.authorizeAndConfirm(body);
       await sameSession();return showStatus(body,value);
     })().finally(()=>choosing.delete(choiceKey));
     choosing.set(choiceKey,pending);return pending;
@@ -393,6 +445,9 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
         const labels={SIN_CONFIGURAR:'Sin configurar',PENDIENTE_VERIFICACION:'Pendiente de verificar ante ARCA',HABILITADO:'Emisor verificado',REQUIERE_REVALIDACION:'Necesita revalidación'};
         view.d.append(node('p','Estado fiscal del comercio: '+(labels[registration.state]||'No disponible')));
       }catch(_){view.d.append(node('p','No se pudo consultar la verificación fiscal. Esto no habilita emisión.'));}
+      if(capability.daily_enabled===true){
+        const taxes=node('button','Condiciones fiscales de clientes e IVA de productos');taxes.type='button';taxes.onclick=()=>taxSetup(api,db,business);view.d.append(taxes);
+      }
       const message=node('p');message.setAttribute('role','status');view.d.append(message);
       const form=node('form');view.d.append(form);
       try{

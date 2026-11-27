@@ -16,7 +16,7 @@ async function ui(state,{ready=true,failStatus=false,documentType=11,switchSessi
  }};
  const document={getElementById:()=>null,createElement:element,body:element('body')};
  const env={window:browser,document,URL,AbortController,setTimeout,clearTimeout};vm.createContext(env);vm.runInContext(fs.readFileSync(require.resolve('../arca.js'),'utf8'),env);
- const db={auth:{getSession:async()=>({data:{session:{access_token:session.token}}})}};
+ const db={auth:{getSession:async()=>({data:{session:{access_token:session.token}}}),getUser:async()=>({data:{user:{id:'synthetic-subject'}}})},from:table=>{assert.equal(table,'usuarios');return {select:()=>({eq:()=>({limit:async()=>({data:[{id_negocio:'SYNTHETIC_BUSINESS',rol:'VENDEDOR',estado:'ACTIVO'}]})})})}}};
  await browser.vicoraArcaInstalar({db,role:'VENDEDOR'});calls.length=0;
  return {browser,calls,dialogs,db};
 }
