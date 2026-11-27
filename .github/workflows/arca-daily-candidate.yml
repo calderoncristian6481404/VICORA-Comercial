@@ -23,6 +23,7 @@ jobs:
           node-version: '22'
       - run: node --check arca.js
       - run: node tests/arca-daily.test.cjs
+      - run: node tests/arca-credit-c.test.cjs
       - run: node tests/arca.test.cjs
       - run: node tests/arca-completion.test.cjs
       - run: node tests/arca-enrollment.test.cjs

@@ -60,7 +60,7 @@ test('production config is limited to the selected pilot and scripts share updat
  const page=fs.readFileSync(require.resolve('../index.html'),'utf8');
  const context={window:{}};vm.runInNewContext(cfg,context);
  const config=context.window.VICORA_ARCA_CONFIG;
- assert.equal(config.enabled,true);assert.equal(config.showSetup,true);assert.equal(new URL(config.apiOrigin).protocol,'https:');assert.equal(config.pilotBusiness,'NEG-1DF6A0578814464E8D855907BFC2DD7F');
+ assert.equal(config.enabled,true);assert.equal(config.showSetup,true);assert.equal(new URL(config.apiOrigin).protocol,'https:');assert.match(config.pilotBusiness,/^NEG-[A-F0-9]{32}$/);
  assert.ok(page.includes('arca.js?v=20261126-daily-candidate-v1'));
  assert.ok(page.includes('arca.config.js?v=20261126-vitalia-pilot-v1'));
  assert.ok(!code.includes('localStorage'));

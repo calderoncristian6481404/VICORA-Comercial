@@ -1,11 +1,33 @@
-# Integración fiscal cotidiana: candidata para revisión
+# Integración opcional por venta — candidata de revisión
 
-Se conserva Ticket VICORA NO FISCAL / Factura ARCA / Más tarde por venta e historial. El módulo fiscal no vuelve a ejecutar confirmar_venta ni movimientos comerciales. La publicación y el archivo de configuración actuales no se habilitan desde este PR.
+La venta, stock, caja y cobros conservan su circuito actual. El ticket VICORA es
+NO FISCAL y no requiere configuración ARCA. La opción fiscal sólo se ofrece tras
+consultar la habilitación del servidor para la cuenta y negocio autenticados.
 
-El administrador puede completar condición fiscal/documento de clientes, tratamiento IVA por producto y logo opcional PNG/JPEG de hasta 32 KiB cuando el backend privado anuncie `daily_enabled`. El servidor verifica sesión, rol y negocio y conserva la configuración versionada; no se envían empresa, tipo de factura, importe, numeración, CAE o permisos para autorizar una emisión. No se presume IVA 21%.
+El frontend transmite referencias de venta y preferencias de presentación. El
+servidor decide identidad, permisos, suscripción, emisor, impuestos, numeración y
+autorización. `X-Vicora-Context` es una precondición contra pantallas de otra
+cuenta: nunca sustituye la autorización del servidor. Cambiar de sesión bloquea
+acciones de una pantalla anterior.
 
-Una solicitud explícita puede intentar la autorización una sola vez. Si falla la conexión, sólo se consulta estado/conciliación, con máximo tres consultas y sin repetir emisión. La operación queda pendiente si no existe una respuesta verificable. Los PDF sólo se descargan desde el backend autenticado que verificó evidencia fiscal.
+- Una sola solicitud explícita de emisión. Tras timeout sólo consulta/conciliación;
+  no se reenvía el POST de emisión ni se vuelve a confirmar la venta.
+- Configuración de IVA/receptor y logo por negocio; nunca pide clave fiscal.
+- Facturas A/B/C según habilitación y condición fiscal verificadas por servidor.
+- Nota de Crédito C **total**, asociada a una factura C original verificada.
+  Primero prepara con motivo legítimo, después requiere consentimiento separado.
+  No admite un importe libre, notas parciales o acreditaciones de un MOCK.
+  No efectúa por sí misma una devolución comercial ni movimientos de caja/stock.
+- PDF A4/80 mm y datos CAE sólo con autorización y consulta independiente verificadas.
+- La lectura/conciliación tiene permiso separado de la emisión. Un CAE simulado
+  no se publica como comprobante auténtico.
 
-La limitación de piloto en `arca.config.js` se conserva. Otro comercio necesita la habilitación individual auténtica del backend; la mera firma de un JWT o un campo del navegador no basta. No se considera instalado ni certificado el backend por estas pruebas HTTP sintéticas.
+Este PR contiene únicamente frontend y pruebas sintéticas, sin código privado de
+servidor, credenciales, certificados o datos fiscales de clientes. No modifica
+la configuración publicada ni despliega Pages. Su servidor compatible se revisa
+en el PR privado de integración; requiere instalación y aceptación independientes.
 
-Este PR no despliega Pages, no toca Supabase/Contabo, no registra otra venta ni emite CAE. Coordinar con el PR privado de operación cotidiana de VICORA-ARCA-Experimental antes de publicar. La emisión de notas de crédito del runtime productivo todavía no está integrada: no confundir su selector de tipo o presentación con habilitación fiscal.
+Pruebas: ejecutar `node tests/arca-daily.test.cjs`,
+`node tests/arca-credit-c.test.cjs` y las regresiones afectadas de cliente/UI.
+El escenario Chromium sobre HTTPS loopback usa Auth y servicios sintéticos;
+no acredita instalación alojada ni autorización fiscal real.

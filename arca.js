@@ -2,7 +2,7 @@
 (function(root){
 'use strict';
 let installation=0;
-function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
+function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000,businessContext=null}){
   const u=new URL(apiOrigin);
   if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.pathname!=='/')throw new Error('Configuración fiscal no disponible.');
   const origin=u.origin,inflight=new Map();
@@ -24,12 +24,14 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
     }
     return value;
   }
+  function checkedCredit(value){checkedStatus(value);if(value.status==='AUTORIZADO_PROD_VERIFICADO'&&value.receipt?.kind!==13)throw new Error('La respuesta no pertenece a una Nota C.');if(['AUTORIZADO_HOMO_VERIFICADO','DEMO_CONCILIADO_NO_FISCAL'].includes(value.status))throw new Error('Una Nota C requiere evidencia auténtica de producción.');return value;}
   async function session(){const {data,error}=await db.auth.getSession();if(error||!data?.session?.access_token)throw new Error('Iniciá sesión nuevamente.');return data.session;}
+  async function boundSession(expected){const current=await session();if(expected&&current.access_token!==expected)throw new Error('La sesión cambió. Volvé a consultar la venta.');return current;}
   async function request(path,method,body,token,reauth){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
     try{
       const response=await fetchImpl(origin+'/v1/fiscal/'+path,{method,credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal,
-        headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{}),...(reauth?{'X-Vicora-Reauth':reauth}:{})},...(body?{body:JSON.stringify(body)}:{})});
+        headers:{Authorization:'Bearer '+token,...(businessContext?{'X-Vicora-Context':businessContext}:{}),...(body?{'Content-Type':'application/json'}:{}),...(reauth?{'X-Vicora-Reauth':reauth}:{})},...(body?{body:JSON.stringify(body)}:{})});
       const value=await response.json();
       if(!response.ok)throw new Error('La operación fiscal está bloqueada. Revisá permisos y configuración; la venta no se vuelve a registrar.');
       if(value.can_send!==false||value.runtime_enabled!==false)throw new Error('Respuesta fiscal no válida.');
@@ -41,9 +43,9 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
     }finally{clearTimeout(timer);}
   }
   return {
-    async prepare(body){
+    async prepare(body,expectedToken){
       if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Referencia de venta inválida.');
-      const s=await session(),key=s.access_token+'|'+body.saleRef;
+      const s=await boundSession(expectedToken),key=s.access_token+'|'+body.saleRef;
       if(inflight.has(key))return inflight.get(key);
       const promise=request('prepare','POST',{saleRef:body.saleRef},s.access_token).then(value=>{
         if(value.status!=='PREPARADO_NO_EMITIDO'||![1,6,11].includes(value.document_type)||!/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.test(value.operation)||/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(value.operation))throw new Error('Respuesta de preparación no válida.');
@@ -51,71 +53,95 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000}){
       }).finally(()=>inflight.delete(key));
       inflight.set(key,promise);return promise;
     },
-    async capabilities(){
-      const value=await request('capabilities','GET',null,(await session()).access_token);
+    async capabilities(expectedToken){
+      const value=await request('capabilities','GET',null,(await boundSession(expectedToken)).access_token);
       if(typeof value.preparation_enabled!=='boolean'||typeof value.configuration_enabled!=='boolean'||!Array.isArray(value.document_types)||value.document_types.some(k=>![1,3,6,8,11,13].includes(k)))throw new Error('Habilitación fiscal no verificable.');
       return value;
     },
-    async status(body){
+    async status(body,expectedToken){
       if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Referencia de venta inválida.');
-      const value=await request('status','POST',{saleRef:body.saleRef},(await session()).access_token);
+      const value=await request('status','POST',{saleRef:body.saleRef},(await boundSession(expectedToken)).access_token);
       return checkedStatus(value);
     },
-    async requestAuthorization(body){
+    async requestAuthorization(body,expectedToken){
       if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Referencia de venta inválida.');
-      const capability=await this.capabilities();
+      const capability=await this.capabilities(expectedToken);
       if(capability.completion_enabled!==true||!['LAB_TLS','HOMOLOGACION','PRODUCCION'].includes(capability.completion_mode))throw new Error('La autorización fiscal sigue deshabilitada. La venta no cambia.');
-      const token=(await session()).access_token,key='completion|'+token+'|'+body.saleRef;
+      const token=(await boundSession(expectedToken)).access_token,key='completion|'+token+'|'+body.saleRef;
       if(inflight.has(key))return inflight.get(key);
       const promise=request('request','POST',body,token).then(checkedStatus).finally(()=>inflight.delete(key));inflight.set(key,promise);return promise;
     },
-    async reconcile(body){
+    async reconcile(body,expectedToken){
       if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Referencia de venta inválida.');
-      const capability=await this.capabilities();if(capability.completion_enabled!==true)throw new Error('Conciliación fiscal deshabilitada.');
-      return checkedStatus(await request('reconcile','POST',body,(await session()).access_token));
+      const capability=await this.capabilities(expectedToken);if(capability.completion_enabled!==true&&capability.reconciliation_enabled!==true)throw new Error('Conciliación fiscal deshabilitada.');
+      return checkedStatus(await request('reconcile','POST',body,(await boundSession(expectedToken)).access_token));
     },
-    async document(body,format){
+    async document(body,format,expectedToken){
       if(!['A4','80mm'].includes(format))throw new Error('Formato no disponible.');
-      const value=await this.status(body);
+      const value=await this.status(body,expectedToken);
       if(!['AUTORIZADO_HOMO_VERIFICADO','AUTORIZADO_PROD_VERIFICADO'].includes(value.status)||value.authorization_verified!==true||value.document_available!==true)throw new Error('No hay CAE verificado para descargar.');
-      const token=(await session()).access_token,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+      const token=(await boundSession(expectedToken)).access_token,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
       try{
-        const response=await fetchImpl(origin+'/v1/fiscal/document',{method:'POST',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({saleRef:body.saleRef,format})});
+        const response=await fetchImpl(origin+'/v1/fiscal/document',{method:'POST',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(businessContext?{'X-Vicora-Context':businessContext}:{}),'Content-Type':'application/json'},body:JSON.stringify({saleRef:body.saleRef,format})});
         if(!response.ok||response.headers.get('content-type')?.split(';')[0]!=='application/pdf')throw new Error('Documento fiscal no disponible.');
         const blob=await response.blob();if(blob.size>8*1024*1024||await blob.slice(0,5).text()!=='%PDF-')throw new Error('Documento fiscal no verificable.');return blob;
       }catch(_){throw new Error('Documento fiscal no disponible. La venta no cambia.');}finally{clearTimeout(timer);}
     },
-    async taxSettings(){return request('settings','GET',null,(await session()).access_token);},
-    async saveTaxSettings(version,data){
-      if(!Number.isSafeInteger(version)||version<0||!data||typeof data!=='object')throw new Error('Datos fiscales inválidos.');
-      return request('settings','PUT',{version,data},(await session()).access_token);
+    async creditPrepare(body,expectedToken){
+      if(!body||Object.keys(body).sort().join(',')!=='reason,saleRef'||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128||typeof body.reason!=='string'||body.reason.trim().length<5||body.reason.length>512)throw new Error('Venta y motivo legítimo requeridos.');
+      const capability=await this.capabilities(expectedToken);if(capability.credit_c_enabled!==true)throw new Error('Notas C deshabilitadas.');
+      const value=await request('credit/prepare','POST',body,(await boundSession(expectedToken)).access_token);
+      if(value.document_type!==13||value.status!=='PREPARADO_NO_EMITIDO'||typeof value.operation!=='string'||!/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.test(value.operation))throw new Error('Preparación de Nota C no verificable.');return value;
     },
-    async authorizeAndConfirm(body){
+    async creditStatus(body,expectedToken){if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Venta requerida.');return checkedCredit(await request('credit/status','POST',body,(await boundSession(expectedToken)).access_token));},
+    async creditRequest(body,expectedToken){
+      if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Venta requerida.');
+      const capability=await this.capabilities(expectedToken);if(capability.credit_c_enabled!==true||capability.completion_enabled!==true||capability.completion_mode!=='PRODUCCION')throw new Error('Autorización de Nota C deshabilitada.');
+      const token=(await boundSession(expectedToken)).access_token,key='credit|'+token+'|'+body.saleRef;if(inflight.has(key))return inflight.get(key);
+      const work=request('credit/request','POST',body,token).then(checkedCredit).finally(()=>inflight.delete(key));inflight.set(key,work);return work;
+    },
+    async creditReconcile(body,expectedToken){if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Venta requerida.');return checkedCredit(await request('credit/reconcile','POST',body,(await boundSession(expectedToken)).access_token));},
+    async creditAuthorizeAndConfirm(body,expectedToken){
+      let value;try{value=await this.creditRequest(body,expectedToken);}catch(error){try{value=await this.creditStatus(body,expectedToken);}catch(_){throw error;}if(!['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA','AUTORIZADO_PROD_VERIFICADO'].includes(value.status))throw error;}
+      for(let n=0;n<3&&['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status);n++){try{value=await this.creditReconcile(body,expectedToken);}catch(_){break;}}return value;
+    },
+    async creditDocument(body,format,expectedToken){
+      if(!['A4','80mm'].includes(format))throw new Error('Formato no disponible.');const status=await this.creditStatus(body,expectedToken);
+      if(status.status!=='AUTORIZADO_PROD_VERIFICADO'||status.receipt?.kind!==13||status.authorization_verified!==true||status.document_available!==true)throw new Error('Nota C sin CAE verificado.');
+      const token=(await boundSession(expectedToken)).access_token,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+      try{const response=await fetchImpl(origin+'/v1/fiscal/credit/document',{method:'POST',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(businessContext?{'X-Vicora-Context':businessContext}:{}),'Content-Type':'application/json'},body:JSON.stringify({...body,format})});if(!response.ok||response.headers.get('content-type')?.split(';')[0]!=='application/pdf')throw new Error();const blob=await response.blob();if(blob.size>8*1024*1024||await blob.slice(0,5).text()!=='%PDF-')throw new Error();return blob;}catch(_){throw new Error('Documento de Nota C no disponible; no se reenvió.');}finally{clearTimeout(timer);}
+    },
+    async taxSettings(expectedToken){return request('settings','GET',null,(await boundSession(expectedToken)).access_token);},
+    async saveTaxSettings(version,data,expectedToken){
+      if(!Number.isSafeInteger(version)||version<0||!data||typeof data!=='object')throw new Error('Datos fiscales inválidos.');
+      return request('settings','PUT',{version,data},(await boundSession(expectedToken)).access_token);
+    },
+    async authorizeAndConfirm(body,expectedToken){
       // One explicit POST only. Every continuation is a read/consultation.
       let value;
-      try{value=await this.requestAuthorization(body);}catch(error){
-        try{value=await this.status(body);}catch(_){throw error;}
+      try{value=await this.requestAuthorization(body,expectedToken);}catch(error){
+        try{value=await this.status(body,expectedToken);}catch(_){throw error;}
         if(!['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA','AUTORIZADO_PROD_VERIFICADO'].includes(value.status))throw error;
       }
       for(let n=0;n<3&&['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status);n++){
-        try{value=await this.reconcile(body);}catch(_){break;}
+        try{value=await this.reconcile(body,expectedToken);}catch(_){break;}
       }
       return value;
     },
-    async profile(){return request('config','GET',null,(await session()).access_token);},
-    async saveProfile(profile,reauthenticate){
-      const s=await session(),fresh=await reauthenticate();
+    async profile(expectedToken){return request('config','GET',null,(await boundSession(expectedToken)).access_token);},
+    async saveProfile(profile,reauthenticate,expectedToken){
+      const s=await boundSession(expectedToken),fresh=await reauthenticate();
       if(!fresh||fresh===s.access_token)throw new Error('Es necesaria una reautenticación reciente.');
       return request('config','PUT',profile,s.access_token,fresh);
     },
-    async enrollmentStatus(){
-      const value=await request('enrollment','GET',null,(await session()).access_token);
+    async enrollmentStatus(expectedToken){
+      const value=await request('enrollment','GET',null,(await boundSession(expectedToken)).access_token);
       if(value.environment!=='PRODUCCION'||!['SIN_CONFIGURAR','PENDIENTE_VERIFICACION','HABILITADO','REQUIERE_REVALIDACION'].includes(value.state))throw new Error('Verificación fiscal no disponible.');
       return value;
     },
-    async verifyEnrollment(version,reauthenticate){
+    async verifyEnrollment(version,reauthenticate,expectedToken){
       if(!Number.isSafeInteger(version)||version<1||typeof reauthenticate!=='function')throw new Error('Configuración fiscal incompleta.');
-      const s=await session(),fresh=await reauthenticate();
+      const s=await boundSession(expectedToken),fresh=await reauthenticate();
       if(!fresh||fresh===s.access_token)throw new Error('Es necesaria una reautenticación reciente.');
       const value=await request('enrollment','POST',{version},s.access_token,fresh);
       if(value.environment!=='PRODUCCION'||value.state!=='HABILITADO')throw new Error('ARCA no verificó la habilitación fiscal.');
@@ -377,31 +403,41 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     business=members[0].id_negocio;role=members[0].rol;
     if(role!=='ADMINISTRADOR'&&button){button.hidden=true;button.onclick=null;}
   }catch(_){return;}
-  let api;try{api=client({db,apiOrigin:config.apiOrigin});}catch(_){return;}
-  async function refresh(){
+  let api;try{api=client({db,apiOrigin:config.apiOrigin,businessContext:business});}catch(_){return;}
+  async function refresh(expectedToken){
     root.VICORA_ARCA_UI_HABILITADA=false;
-    const capability=await api.capabilities();
+    const capability=await api.capabilities(expectedToken);
     if(generation!==installation)throw new Error('La sesión cambió. Volvé a consultar desde la venta.');
     if(config.pilotBusiness!==undefined&&business!==config.pilotBusiness&&capability.daily_enabled!==true)throw new Error('La conexión fiscal de este comercio todavía no está habilitada.');
     root.VICORA_ARCA_UI_HABILITADA=capability.preparation_enabled===true;
     return capability;
   }
   root.vicoraArcaRefrescarDisponibilidad=refresh;
-  async function showStatus(body,value){
-    const view=dialog('Estado del comprobante');
+  async function showStatus(body,value,credit=false,expectedToken=null){
+    const viewed=await db.auth.getSession(),viewToken=expectedToken||viewed.data?.session?.access_token;
+    async function guardView(){const now=await db.auth.getSession();if(!viewToken||now.error||now.data?.session?.access_token!==viewToken||generation!==installation)throw new Error('La sesión cambió. Cerrá esta ventana.');}
+    await guardView();
+    const view=dialog(credit?'Nota de Crédito C total':'Estado del comprobante');
     if([1,6,11].includes(value.document_type))view.d.append(node('p','Tipo '+({1:'A',6:'B',11:'C'})[value.document_type]+' determinado por el servidor fiscal.'));
-    const labels={NO_DISPONIBLE:'No hay una preparación disponible.',PREPARADO_NO_EMITIDO:'Preparada: no emitida, sin CAE.',EMISION_BLOQUEADA:'Preparada; autorización fiscal deshabilitada.',RESULTADO_INCIERTO:'Resultado incierto. No reenviar; requiere conciliación.',BLOQUEADO:'Operación bloqueada. Requiere revisión.',CONFLICTO_BLOQUEADO:'Respuestas contradictorias. Operación bloqueada sin reenvío.',RECHAZADO:'Solicitud rechazada. No se reenvía automáticamente.',DEMO_CONCILIADO_NO_FISCAL:'Ensayo conciliado. NO FISCAL: no tiene CAE auténtico ni documento fiscal.',AUTORIZADO_HOMO_VERIFICADO:'Autorización de homologación verificada; no es emisión de producción.',PENDIENTE_CONCILIACION:'Solicitud fiscal registrada; falta verificar el resultado con ARCA. No reenviar.',CONSULTA_REGISTRADA:'Consulta registrada; se está verificando el comprobante.',AUTORIZADO_PROD_VERIFICADO:'Factura ARCA verificada en producción; CAE validado mediante consulta independiente.'};
+    const labels={NO_DISPONIBLE:'No hay una preparación disponible.',PREPARADO_NO_EMITIDO:'Preparada: no emitida, sin CAE.',EMISION_BLOQUEADA:'Preparada; autorización fiscal deshabilitada.',RESULTADO_INCIERTO:'Resultado incierto. No reenviar; requiere conciliación.',BLOQUEADO:'Operación bloqueada. Requiere revisión.',CONFLICTO_BLOQUEADO:'Respuestas contradictorias. Operación bloqueada sin reenvío.',RECHAZADO:'Solicitud rechazada. No se reenvía automáticamente.',DEMO_CONCILIADO_NO_FISCAL:'Ensayo conciliado. NO FISCAL: no tiene CAE auténtico ni documento fiscal.',AUTORIZADO_HOMO_VERIFICADO:'Autorización de homologación verificada; no es emisión de producción.',PENDIENTE_CONCILIACION:'Solicitud fiscal registrada; falta verificar el resultado con ARCA. No reenviar.',CONSULTA_REGISTRADA:'Consulta registrada; se está verificando el comprobante.',AUTORIZADO_PROD_VERIFICADO:'Comprobante ARCA verificado en producción; CAE validado mediante consulta independiente.'};
     view.d.append(node('p',labels[value.status]||'Preparada, sin emisión.'),node('p','La venta ya fue registrada una sola vez. El ticket VICORA es NO FISCAL.'));
     if(['AUTORIZADO_HOMO_VERIFICADO','AUTORIZADO_PROD_VERIFICADO'].includes(value.status)&&value.authorization_verified===true&&value.document_available===true){
       if(value.receipt){const r=value.receipt;view.d.append(node('p','Comprobante '+String(r.point).padStart(5,'0')+'-'+String(r.number).padStart(8,'0')),node('p','CAE: '+r.cae),node('p','Vencimiento: '+r.expiry.slice(6,8)+'/'+r.expiry.slice(4,6)+'/'+r.expiry.slice(0,4)));}
       for(const format of ['A4','80mm']){
         const download=node('button',format==='A4'?'Descargar PDF A4':'Descargar / reimprimir 80 mm');download.type='button';
-        download.onclick=async()=>{download.disabled=true;try{const blob=await api.document(body,format),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='vicora-'+(value.environment==='PRODUCCION'?'factura-arca':'homologacion')+'-'+format+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(_){view.d.append(node('p','No se pudo verificar el documento. No vuelvas a registrar la venta.'));}finally{download.disabled=false;}};
+        download.onclick=async()=>{download.disabled=true;try{const blob=await (credit?api.creditDocument(body,format,viewToken):api.document(body,format,viewToken)),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='vicora-'+(credit?'nota-credito-c-':'')+(value.environment==='PRODUCCION'?'factura-arca':'homologacion')+'-'+format+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(_){view.d.append(node('p','No se pudo verificar el documento. No vuelvas a registrar la venta.'));}finally{download.disabled=false;}};
         view.d.append(download);
       }
     }else view.d.append(node('p','No hay CAE verificado: no se habilitan PDF, QR ni impresión fiscal.'));
     if(['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status)){
-      const reconcile=node('button','Consultar y conciliar (sin reenviar)');reconcile.type='button';reconcile.onclick=async()=>{reconcile.disabled=true;try{const result=await api.reconcile(body);view.d.close();await showStatus(body,result);}catch(_){view.d.append(node('p','Conciliación no disponible. La solicitud permanece bloqueada.'));}finally{reconcile.disabled=false;}};view.d.append(reconcile);
+      const reconcile=node('button','Consultar y conciliar (sin reenviar)');reconcile.type='button';reconcile.onclick=async()=>{reconcile.disabled=true;try{const result=await (credit?api.creditReconcile(body,viewToken):api.reconcile(body,viewToken));view.d.close();await showStatus(body,result,credit,viewToken);}catch(_){view.d.append(node('p','Conciliación no disponible. La solicitud permanece bloqueada.'));}finally{reconcile.disabled=false;}};view.d.append(reconcile);
+    }
+    if(credit&&['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)){
+      const send=node('button','Solicitar autorización de esta Nota C');send.type='button';send.onclick=async()=>{if(!root.confirm('¿Autorizar la Nota de Crédito C TOTAL del comprobante original? No se repiten ventas, stock, caja ni reintegros.'))return;send.disabled=true;try{const result=await api.creditAuthorizeAndConfirm(body,viewToken);view.d.close();await showStatus(body,result,true,viewToken);}catch(_){view.d.append(node('p','No se pudo confirmar la Nota C. Consultá su estado; no reenvíes ni prepares otra.'));}finally{send.disabled=false;}};view.d.append(send);
+    }
+    if(!credit&&value.status==='AUTORIZADO_PROD_VERIFICADO'&&value.receipt?.kind===11){
+      const cap=await refresh(viewToken);if(cap.credit_c_enabled===true){const note=node('button','Ver / preparar Nota de Crédito C total');note.type='button';note.onclick=async()=>{note.disabled=true;try{const state=await api.creditStatus(body,viewToken);if(state.status!=='NO_DISPONIBLE'){view.d.close();return showStatus(body,state,true,viewToken);}const form=dialog('Preparar Nota de Crédito C total');form.d.append(node('p','Sólo por una anulación fiscal legítima. El servidor toma el total y los datos del original verificado. Esto no registra una devolución comercial ni un reintegro.'));
+      const reason=node('input');reason.type='text';reason.maxLength=512;reason.placeholder='Motivo legítimo';reason.setAttribute('aria-label','Motivo legítimo de la Nota C');const prepare=node('button','Preparar Nota C (sin emitir)');prepare.type='button';prepare.onclick=async()=>{if(reason.value.trim().length<5)return;prepare.disabled=true;try{const result=await api.creditPrepare({...body,reason:reason.value.trim()},viewToken);form.d.close();view.d.close();await showStatus(body,result,true,viewToken);}catch(_){form.d.append(node('p','Preparación bloqueada. No se emitió ni se reservó numeración.'));}finally{prepare.disabled=false;}};form.d.append(reason,prepare,form.close);form.d.showModal();}catch(_){view.d.append(node('p','No se pudo consultar la Nota C. La factura original permanece conservada.'));}finally{note.disabled=false;}};view.d.append(note);}
     }
     view.d.append(view.close);view.d.showModal();return value;
   }
@@ -414,26 +450,26 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     const choiceKey=token+'|'+body.saleRef;
     if(choosing.has(choiceKey))return choosing.get(choiceKey);
     const pending=(async()=>{
-      const capability=await refresh();
+      const capability=await refresh(token);
       // Existing uncertain/rejected/authorized work is consulted, never prepared
       // or sent again just because the seller returns from sales history.
-      let value=await api.status(body);await sameSession();
+      let value=await api.status(body,token);await sameSession();
       if(value.status==='NO_DISPONIBLE'){
         if(capability.preparation_enabled!==true)throw new Error('El comercio no tiene preparación fiscal habilitada. El ticket común sigue disponible.');
-        value=await api.prepare(body);
+        value=await api.prepare(body,token);
       }
       await sameSession();
-      if(['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)&&capability.completion_enabled===true)value=await api.authorizeAndConfirm(body);
-      await sameSession();return showStatus(body,value);
+      if(['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)&&capability.completion_enabled===true)value=await api.authorizeAndConfirm(body,token);
+      await sameSession();return showStatus(body,value,false,token);
     })().finally(()=>choosing.delete(choiceKey));
     choosing.set(choiceKey,pending);return pending;
   };
   root.vicoraArcaConsultarEstado=async body=>{
     const before=await db.auth.getSession(),token=before.data?.session?.access_token;
     if(before.error||!token||generation!==installation)throw new Error('Iniciá sesión nuevamente.');
-    const value=await api.status(body),after=await db.auth.getSession();
+    const value=await api.status(body,token),after=await db.auth.getSession();
     if(after.error||after.data?.session?.access_token!==token||generation!==installation)throw new Error('La sesión cambió. Consultá el estado nuevamente.');
-    return showStatus(body,value);
+    return showStatus(body,value,false,token);
   };
   let capability;try{capability=await refresh();}catch(_){return;}
   if(button&&role==='ADMINISTRADOR'&&capability.configuration_enabled===true){

@@ -22,3 +22,6 @@ test('tax setup carries neither tenant nor role; authenticated server derives sc
 test('fiscal-disabled account cannot attempt issuance; ordinary ticket path untouched',async()=>{
  const {api,calls}=fixture(()=>({completion_enabled:false}));await assert.rejects(api.authorizeAndConfirm({saleRef:'SYNTHETIC-SALE'}));assert.ok(calls.every(x=>x[0]!=='request'));assert.ok(calls.every(x=>!String(x[0]).includes('venta')));
 });
+test('explicit read permission reconciles while issuance is OFF, without a POST of emission',async()=>{
+ const {api,calls}=fixture(path=>path==='capabilities'?{completion_enabled:false,completion_mode:'OFF',reconciliation_enabled:true}:pending);await api.reconcile({saleRef:'SYNTHETIC-SALE'});await assert.rejects(api.requestAuthorization({saleRef:'SYNTHETIC-SALE'}));assert.equal(calls.filter(x=>x[0]==='reconcile').length,1);assert.ok(calls.every(x=>x[0]!=='request'));
+});
