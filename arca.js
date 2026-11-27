@@ -182,6 +182,27 @@ function dialog(title){
   const d=node('dialog');d.style.cssText='width:min(520px,90vw);max-height:90vh;overflow:auto;border:0;border-radius:14px;padding:24px';
   d.append(node('h2',title));const close=node('button','Cerrar');close.type='button';close.onclick=()=>d.close();d.addEventListener('close',()=>d.remove());document.body.append(d);return {d,close};
 }
+// Guided values remain text-compatible with the existing commercial contract.
+// Unknown historical text is preserved; it is never classified automatically.
+function grossIncomeEditor(container,field){
+  const mode=field(container,'grossIncomeCondition','Ingresos Brutos',null,[['INSCRIPTO','Inscripto'],['EXENTO','Exento'],['ASESORAMIENTO','Necesito asesoramiento']]);
+  const number=field(container,'grossIncomeNumber','Número de inscripción','text',null,'Inscripción del comercio');number.maxLength=120;
+  const reason=field(container,'grossIncomeExemption','Condición o motivo de exención (opcional)','text',null,'Según constancia o asesoramiento');reason.maxLength=120;
+  const stored=field(container,'grossIncome','Valor existente de Ingresos Brutos','hidden');stored.type='hidden';
+  const note=node('p');note.style.cssText='font-size:13px;line-height:1.5';container.append(note);let original='',dirty=false;
+  function update(){number.hidden=mode.value!=='INSCRIPTO';reason.hidden=mode.value!=='EXENTO';note.textContent=mode.value==='ASESORAMIENTO'?'Configuración pendiente de asesoramiento. Podés guardar un borrador; no enviar la solicitud fiscal.':(!mode.value&&original?'El valor existente se conserva sin reinterpretarlo. Elegí una opción sólo si corresponde modificarlo.':'No determina automáticamente tu condición tributaria.');}
+  mode.onchange=()=>{dirty=true;update();};number.oninput=reason.oninput=()=>{dirty=true;};
+  function load(value){original=String(value||'');dirty=false;stored.value=original;mode.value='';number.value='';reason.value='';let m;
+    if((m=/^Inscripto: (.+)$/i.exec(original))){mode.value='INSCRIPTO';number.value=m[1];}
+    else if((m=/^Exento(?:[: ]+(.+))?$/i.exec(original))){mode.value='EXENTO';reason.value=m[1]||'';}
+    update();}
+  function value(){if(!dirty&&original)return original;if(mode.value==='ASESORAMIENTO')return null;if(mode.value==='INSCRIPTO')return number.value.trim()?'Inscripto: '+number.value.trim():null;if(mode.value==='EXENTO')return reason.value.trim()?'Exento: '+reason.value.trim():'Exento';return stored.value.trim()?stored.value:null;}
+  load('');return {load,value,pending:()=>mode.value==='ASESORAMIENTO'};
+}
+function delegatedRepresentation(container){
+  const value=node('input');value.type='hidden';value.name='representation';value.value='DELEGADA';
+  container.append(node('p','Emisión mediante representante autorizado'),node('p','Para utilizar la facturación electrónica de VICORA, deberás autorizar al representante correspondiente desde ARCA.'),value);return value;
+}
 root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
   const generation=++installation;
   for(const name of ['vicoraArcaIniciarEmision','vicoraArcaConsultarEstado','vicoraArcaRefrescarDisponibilidad'])delete root[name];
@@ -191,7 +212,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
   // Merchant onboarding is separate from invoice emission. Admin may explicitly
   // store a draft/request under its Supabase RLS business; never private keys.
   // No ARCA issuance, WSAA call, invoice number or CAE from this UI.
-  function offlineSetup(){
+  function offlineSetup(loadExisting=false){
     const view=dialog('Facturación electrónica · Alta de comercio');
     view.d.style.cssText='box-sizing:border-box;width:min(680px,calc(100vw - 20px));max-width:680px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:auto;border:1px solid #dfe5ef;border-radius:16px;padding:clamp(14px,3vw,26px);color:#243247;background:#fff;box-shadow:0 22px 70px #11182733';
     const heading=view.d.firstElementChild;
@@ -229,11 +250,11 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     const issuer=field(primary,'issuer','CUIT emisor · 11 números','text',null,'Ej.: 20XXXXXXXXX','Debe ser del propio comercio, sin guiones.');
     const condition=field(primary,'condition','Condición frente al IVA',null,[['MONOTRIBUTO','Monotributista'],['RI','Responsable inscripto'],['EXENTO','Exento']],null,'Los tipos A/B/C se determinan luego con la condición verificada por ARCA.');
     const point=field(primary,'point','Punto de venta habilitado para Web Services','number',null,'Ej.: 4','No inventes ni reutilices un punto de Comprobantes en línea; debe estar habilitado para WSFE.');
-    const representation=field(primary,'representation','Forma de representación',null,[['PROPIA','Emisión con representación propia'],['DELEGADA','Emisión por representante autorizado']],null,'La relación con WSFE se verifica por un canal privado.');
+    const representation=delegatedRepresentation(primary);
     const invoice=section('2. Datos para el comprobante','Se necesitan para completar y revisar la presentación de las facturas; algunos requisitos varían según el contribuyente.');
     const businessName=field(invoice,'businessName','Nombre o razón social','text',null,'Nombre registrado del emisor');
     const taxAddress=field(invoice,'taxAddress','Domicilio fiscal','text',null,'Calle, número, ciudad y provincia');
-    const grossIncome=field(invoice,'grossIncome','Ingresos Brutos o condición de exención','text',null,'Inscripción / exento según corresponda');
+    const grossIncome=grossIncomeEditor(invoice,field);
     const activityStart=field(invoice,'activityStart','Inicio de actividades','date',null,null,'Según constancia fiscal del comercio.');
     const requirements=section('3. Autorizaciones que tiene que gestionar el titular','VICORA no puede autorizarse automáticamente en nombre de un tercero.');
     const checklist=[
@@ -272,7 +293,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
       if(!['MONOTRIBUTO','RI','EXENTO'].includes(condition.value))errors.push('Seleccioná la condición frente al IVA.');
       const n=Number(point.value);
       if(!/^[0-9]{1,5}$/.test(String(point.value))||!Number.isInteger(n)||n<1||n>99998)errors.push('Punto de venta: número válido entre 1 y 99998.');
-      if(!['PROPIA','DELEGADA'].includes(representation.value))errors.push('Seleccioná la representación.');
+      if(representation.value!=='DELEGADA')errors.push('La representación histórica requiere revisión; no fue modificada.');
       if(!businessName.value.trim())errors.push('Indicá el nombre o razón social.');
       message.textContent=errors.length
         ? 'Faltan datos: '+errors.join(' ')
@@ -299,7 +320,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
         cuit_emisor:clean(issuer),condicion_iva:clean(condition),
         punto_venta:clean(point)?Number(point.value):null,
         representacion:clean(representation),razon_social:clean(businessName),
-        domicilio_fiscal:clean(taxAddress),ingresos_brutos:clean(grossIncome),
+        domicilio_fiscal:clean(taxAddress),ingresos_brutos:grossIncome.value(),
         inicio_actividades:clean(activityStart),declara_responsabilidad:consent.checked===true
       };
     }
@@ -326,10 +347,10 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
           issuer.value=data.cuit_emisor||'';
           condition.value=data.condicion_iva||'';
           point.value=data.punto_venta==null?'':String(data.punto_venta);
-          representation.value=data.representacion||'';
+          representation.value=data.representacion||'DELEGADA';
           businessName.value=data.razon_social||'';
           taxAddress.value=data.domicilio_fiscal||'';
-          grossIncome.value=data.ingresos_brutos||'';
+          grossIncome.load(data.ingresos_brutos);
           activityStart.value=data.inicio_actividades||'';
           consent.checked=data.declara_responsabilidad===true;
         }
@@ -344,7 +365,8 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
         if(!/^[0-9]{11}$/.test(v.cuit_emisor||''))errors.push('CUIT de 11 dígitos');
         if(!['MONOTRIBUTO','RI','EXENTO'].includes(v.condicion_iva))errors.push('condición IVA');
         if(!Number.isInteger(v.punto_venta)||v.punto_venta<1||v.punto_venta>99998)errors.push('punto WSFE');
-        if(!['PROPIA','DELEGADA'].includes(v.representacion))errors.push('representación');
+        if(v.representacion!=='DELEGADA')errors.push('revisión de representación autorizada');
+        if(grossIncome.pending())errors.push('asesoramiento de Ingresos Brutos pendiente');
         if(!v.razon_social||!v.domicilio_fiscal||!v.ingresos_brutos||!v.inicio_actividades)
           errors.push('datos para el comprobante');
         if(v.declara_responsabilidad!==true)errors.push('declaración del responsable');
@@ -383,7 +405,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
       }catch(_){message.textContent='No se pudo copiar automáticamente. Podés copiar el listado del apartado 3.';}
     };
     view.close.style.cssText='min-height:42px;padding:10px 13px;border-radius:9px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;cursor:pointer';
-    actions.append(view.close);view.d.append(message,actions);view.d.showModal();
+    actions.append(view.close);view.d.append(message,actions);view.d.showModal();if(loadExisting)void load.onclick();
   }
   if(config?.showSetup===true && button && role==='ADMINISTRADOR'){
     button.hidden=false;
@@ -484,6 +506,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
       if(capability.daily_enabled===true){
         const taxes=node('button','Condiciones fiscales de clientes e IVA de productos');taxes.type='button';taxes.onclick=()=>taxSetup(api,db,business);view.d.append(taxes);
       }
+      const details=node('button','Datos del comprobante e Ingresos Brutos');details.type='button';details.onclick=()=>{view.d.close();offlineSetup(true);};view.d.append(details);
       const message=node('p');message.setAttribute('role','status');view.d.append(message);
       const form=node('form');view.d.append(form);
       try{
@@ -496,7 +519,8 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
         field('issuer','CUIT del comercio','text',profile.issuer).inputMode='numeric';
         field('condition','Condición fiscal',null,profile.condition,[['RI','Responsable inscripto'],['MONOTRIBUTO','Monotributo'],['EXENTO','Exento']]);
         const point=field('point','Punto de venta','number',profile.point);point.min='1';point.max='99998';
-        field('representation','Representación',null,profile.representation,[['PROPIA','Propia'],['DELEGADA','Delegada']]);
+        fields.representation=delegatedRepresentation(form);fields.representation.value=profile.representation||'DELEGADA';
+        if(fields.representation.value!=='DELEGADA')message.textContent='La representación histórica requiere revisión. No se modificó el perfil existente.';
         field('enabled','Solicitar habilitación de preparación (no emisión)','checkbox',profile.enabled);
         const password=field('password','Tu contraseña actual de VICORA','password','');password.autocomplete='current-password';
         const save=node('button','Guardar solicitud');save.type='submit';form.append(save);
@@ -530,7 +554,8 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
           }finally{password.value='';save.disabled=false;verifyButton.disabled=profile.enabled!==true;}
         };
         form.onsubmit=async event=>{
-          event.preventDefault();if(save.disabled)return;save.disabled=true;
+          event.preventDefault();if(save.disabled)return;
+          if(fields.representation.value!=='DELEGADA'){message.textContent='La representación histórica requiere revisión; no se modificó.';return;}save.disabled=true;
           const body={version:profile.version,issuer:fields.issuer.value.trim(),condition:fields.condition.value,point:Number(fields.point.value),representation:fields.representation.value,enabled:fields.enabled.checked};
           try{
             const result=await api.saveProfile(body,async()=>{

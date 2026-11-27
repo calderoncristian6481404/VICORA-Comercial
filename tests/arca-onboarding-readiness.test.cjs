@@ -32,7 +32,7 @@ test('local format review never validates actual ARCA authorization or stores se
  const s=setup();await s.browser.vicoraArcaInstalar({db:s.db,role:s.role});s.button.onclick();
  const d=s.events.dialogs[0],check=button(d,'Revisar datos ingresados');
  check.onclick();assert.ok(text(d).includes('Faltan datos'));
- input(d,'issuer').value='20999999990';input(d,'point').value='1';input(d,'condition').value='MONOTRIBUTO';input(d,'representation').value='PROPIA';input(d,'businessName').value='Comercio de prueba';
+ input(d,'issuer').value='20999999990';input(d,'point').value='1';input(d,'condition').value='MONOTRIBUTO';input(d,'representation').value='DELEGADA';input(d,'businessName').value='Comercio de prueba';
  check.onclick();assert.ok(text(d).includes('No verifica autorización ARCA'));
  assert.equal(s.events.calls,0);assert.equal(s.browser.VICORA_ARCA_UI_HABILITADA,false);
 });
@@ -100,7 +100,7 @@ test('request may be submitted only with all fiscal fields and explicit responsi
  await s.browser.vicoraArcaInstalar({db:s.db,role:'ADMINISTRADOR'});s.button.onclick();
  const d=s.events.dialogs[0],send=button(d,'Enviar solicitud de habilitación');
  await send.onclick();assert.equal(writes.length,0);assert.ok(text(d).includes('Para enviar'));
- for(const [k,v] of Object.entries({issuer:'20123456789',condition:'MONOTRIBUTO',point:'5',representation:'PROPIA',businessName:'Tienda',taxAddress:'Calle 12',grossIncome:'Exento',activityStart:'2024-03-11'}))
+ for(const [k,v] of Object.entries({issuer:'20123456789',condition:'MONOTRIBUTO',point:'5',representation:'DELEGADA',businessName:'Tienda',taxAddress:'Calle 12',grossIncome:'Exento',activityStart:'2024-03-11'}))
    input(d,k).value=v;
  await send.onclick();assert.equal(writes.length,0);assert.ok(text(d).includes('declaración del responsable'));
  input(d,'declaraResponsabilidad').checked=true;
@@ -112,7 +112,7 @@ test('request may be submitted only with all fiscal fields and explicit responsi
 });
 test('saved request can be loaded only after authenticated administrator membership check',async()=>{
  const s=setup();
- const records={cuit_emisor:'20123456789',condicion_iva:'MONOTRIBUTO',punto_venta:5,representacion:'PROPIA',
+ const records={cuit_emisor:'20123456789',condicion_iva:'MONOTRIBUTO',punto_venta:5,representacion:'DELEGADA',
   razon_social:'Tienda',domicilio_fiscal:'Calle 12',ingresos_brutos:'Exento',inicio_actividades:'2024-03-11',
   declara_responsabilidad:true,estado:'SOLICITADA'};
  s.db.auth.getUser=async()=>({data:{user:{id:'USER-3'}},error:null});
