@@ -25,3 +25,4 @@ jobs:
       - run: node tests/arca-guided-tax.test.cjs
       - run: node tests/arca-onboarding-readiness.test.cjs
       - run: node tests/arca-enrollment.test.cjs
+      - run: node tests/arca-ui-integration.test.cjs

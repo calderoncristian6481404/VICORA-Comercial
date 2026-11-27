@@ -179,7 +179,7 @@ async function taxSetup(api,db,business){
 }
 function node(tag,text){const e=document.createElement(tag);if(text)e.textContent=text;return e;}
 function dialog(title){
-  const d=node('dialog');d.style.cssText='width:min(520px,90vw);max-height:90vh;overflow:auto;border:0;border-radius:14px;padding:24px';
+  const d=node('dialog');d.style.cssText='box-sizing:border-box;width:min(568px,calc(100vw - 20px));max-height:90vh;overflow:auto;border:0;border-radius:14px;padding:24px';
   d.append(node('h2',title));const close=node('button','Cerrar');close.type='button';close.onclick=()=>d.close();d.addEventListener('close',()=>d.remove());document.body.append(d);return {d,close};
 }
 // Guided values remain text-compatible with the existing commercial contract.
@@ -188,9 +188,9 @@ function grossIncomeEditor(container,field){
   const mode=field(container,'grossIncomeCondition','Ingresos Brutos',null,[['INSCRIPTO','Inscripto'],['EXENTO','Exento'],['ASESORAMIENTO','Necesito asesoramiento']]);
   const number=field(container,'grossIncomeNumber','Número de inscripción','text',null,'Inscripción del comercio');number.maxLength=120;
   const reason=field(container,'grossIncomeExemption','Condición o motivo de exención (opcional)','text',null,'Según constancia o asesoramiento');reason.maxLength=120;
-  const stored=field(container,'grossIncome','Valor existente de Ingresos Brutos','hidden');stored.type='hidden';
+  const stored=field(container,'grossIncome','Valor existente de Ingresos Brutos','hidden');stored.type='hidden';(stored.parentElement||stored).hidden=true;
   const note=node('p');note.style.cssText='font-size:13px;line-height:1.5';container.append(note);let original='',dirty=false;
-  function update(){number.hidden=mode.value!=='INSCRIPTO';reason.hidden=mode.value!=='EXENTO';note.textContent=mode.value==='ASESORAMIENTO'?'Configuración pendiente de asesoramiento. Podés guardar un borrador; no enviar la solicitud fiscal.':(!mode.value&&original?'El valor existente se conserva sin reinterpretarlo. Elegí una opción sólo si corresponde modificarlo.':'No determina automáticamente tu condición tributaria.');}
+  function update(){(number.parentElement||number).hidden=mode.value!=='INSCRIPTO';(reason.parentElement||reason).hidden=mode.value!=='EXENTO';note.textContent=mode.value==='ASESORAMIENTO'?'Configuración pendiente de asesoramiento. Podés guardar un borrador; no enviar la solicitud fiscal.':(!mode.value&&original?'El valor existente se conserva sin reinterpretarlo. Elegí una opción sólo si corresponde modificarlo.':'No determina automáticamente tu condición tributaria.');}
   mode.onchange=()=>{dirty=true;update();};number.oninput=reason.oninput=()=>{dirty=true;};
   function load(value){original=String(value||'');dirty=false;stored.value=original;mode.value='';number.value='';reason.value='';let m;
     if((m=/^Inscripto: (.+)$/i.exec(original))){mode.value='INSCRIPTO';number.value=m[1];}
