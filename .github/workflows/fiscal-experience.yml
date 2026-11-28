@@ -1,0 +1,26 @@
+name: Fiscal experience directed checks
+on:
+  push:
+    branches: [codex/experiencia-fiscal-20261128]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  fiscal-ui:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Targeted client and recovery checks (synthetic HTTP only)
+        shell: bash
+        run: |
+          for file in tests/arca.test.cjs tests/arca-guided-tax.test.cjs tests/arca-ui-integration.test.cjs tests/arca-onboarding-readiness.test.cjs tests/arca-enrollment.test.cjs tests/arca-daily.test.cjs tests/arca-credit-c.test.cjs tests/arca-completion.test.cjs tests/optional-receipts.test.cjs tests/arca-recovery.test.cjs; do
+            node "$file" || exit 1
+          done

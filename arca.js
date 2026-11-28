@@ -2,10 +2,21 @@
 (function(root){
 'use strict';
 let installation=0;
-function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000,businessContext=null}){
+function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=60000,businessContext=null,recoveryDelayMs=3000,recoveryAttempts=5,sleep=ms=>new Promise(r=>setTimeout(r,ms)),onDiagnostic=()=>{}}){
   const u=new URL(apiOrigin);
   if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.pathname!=='/')throw new Error('Configuración fiscal no disponible.');
-  const origin=u.origin,inflight=new Map();
+  const origin=u.origin,inflight=new Map(),workflows=new Map();
+  const budget=path=>['capabilities','settings','config'].includes(path)?Math.min(timeoutMs,15000):timeoutMs;
+  const pendingStates=['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'];
+  function diagnostic(stage,start,category){try{onDiagnostic({stage,duration_ms:Math.max(0,Date.now()-start),category});}catch(_){} }
+  async function recover(body,expectedToken,credit,value){
+    for(let n=0;n<Math.min(5,Math.max(0,recoveryAttempts))&&pendingStates.includes(value.status);n++){
+      await sleep(Math.max(0,recoveryDelayMs));await boundSession(expectedToken);
+      try{value=await (credit?api.creditStatus(body,expectedToken):api.status(body,expectedToken));
+        if(pendingStates.includes(value.status))value=await (credit?api.creditReconcile(body,expectedToken):api.reconcile(body,expectedToken));
+      }catch(error){await boundSession(expectedToken);/* retain uncertainty, never retry issuance */}
+    }return value;
+  }
   const states=['NO_DISPONIBLE','PREPARADO_NO_EMITIDO','RESULTADO_INCIERTO','BLOQUEADO','EMISION_BLOQUEADA','RECHAZADO','CONFLICTO_BLOQUEADO','DEMO_CONCILIADO_NO_FISCAL','AUTORIZADO_HOMO_VERIFICADO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA','AUTORIZADO_PROD_VERIFICADO'];
   function checkedStatus(value){
     if(!states.includes(value.status))throw new Error('Estado fiscal no verificable.');
@@ -24,25 +35,35 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000,businessConte
     }
     return value;
   }
-  function checkedCredit(value){checkedStatus(value);if(value.status==='AUTORIZADO_PROD_VERIFICADO'&&value.receipt?.kind!==13)throw new Error('La respuesta no pertenece a una Nota C.');if(['AUTORIZADO_HOMO_VERIFICADO','DEMO_CONCILIADO_NO_FISCAL'].includes(value.status))throw new Error('Una Nota C requiere evidencia auténtica de producción.');return value;}
+  function checkedCredit(value){checkedStatus(value);if(value.status==='AUTORIZADO_PROD_VERIFICADO'&&![3,8,13].includes(value.receipt?.kind))throw new Error('La respuesta no pertenece a una Nota C.');if(['AUTORIZADO_HOMO_VERIFICADO','DEMO_CONCILIADO_NO_FISCAL'].includes(value.status))throw new Error('Una Nota C requiere evidencia auténtica de producción.');return value;}
+  async function complete(body,expectedToken,credit){
+    const token=(await boundSession(expectedToken)).access_token,key=(credit?'credit-flow|':'invoice-flow|')+token+'|'+body?.saleRef;
+    if(workflows.has(key))return workflows.get(key);
+    const work=(async()=>{let value;try{value=await (credit?api.creditRequest(body,token):api.requestAuthorization(body,token));}
+      catch(error){try{value=await (credit?api.creditStatus(body,token):api.status(body,token));}catch(_){throw error;}
+        if(!pendingStates.includes(value.status)&&!['AUTORIZADO_PROD_VERIFICADO','AUTORIZADO_HOMO_VERIFICADO'].includes(value.status))throw error;}
+      const result=await recover(body,token,credit,value);await boundSession(token);return result;
+    })().finally(()=>workflows.delete(key));workflows.set(key,work);return work;
+  }
   async function session(){const {data,error}=await db.auth.getSession();if(error||!data?.session?.access_token)throw new Error('Iniciá sesión nuevamente.');return data.session;}
   async function boundSession(expected){const current=await session();if(expected&&current.access_token!==expected)throw new Error('La sesión cambió. Volvé a consultar la venta.');return current;}
   async function request(path,method,body,token,reauth){
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),budget(path)),started=Date.now();
     try{
       const response=await fetchImpl(origin+'/v1/fiscal/'+path,{method,credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal,
         headers:{Authorization:'Bearer '+token,...(businessContext?{'X-Vicora-Context':businessContext}:{}),...(body?{'Content-Type':'application/json'}:{}),...(reauth?{'X-Vicora-Reauth':reauth}:{})},...(body?{body:JSON.stringify(body)}:{})});
       const value=await response.json();
       if(!response.ok)throw new Error('La operación fiscal está bloqueada. Revisá permisos y configuración; la venta no se vuelve a registrar.');
       if(value.can_send!==false||value.runtime_enabled!==false)throw new Error('Respuesta fiscal no válida.');
-      return value;
+      diagnostic(path,started,'OK');return value;
     }catch(error){
-      if(error.name==='AbortError')throw new Error('No se pudo confirmar la preparación. No se reenvió: consultá nuevamente desde la venta.');
+      diagnostic(path,started,error.name==='AbortError'?'TIMEOUT':'UNAVAILABLE');
+      if(error?.name==='AbortError')throw new Error('El resultado todavía está siendo verificado. Tu venta ya está registrada; no se reenvió la solicitud.');
       if(error instanceof TypeError)throw new Error('Conexión fiscal no disponible. La venta ya registrada no cambia.');
       throw error;
     }finally{clearTimeout(timer);}
   }
-  return {
+  const api={
     async prepare(body,expectedToken){
       if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Referencia de venta inválida.');
       const s=await boundSession(expectedToken),key=s.access_token+'|'+body.saleRef;
@@ -89,25 +110,22 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000,businessConte
     },
     async creditPrepare(body,expectedToken){
       if(!body||Object.keys(body).sort().join(',')!=='reason,saleRef'||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128||typeof body.reason!=='string'||body.reason.trim().length<5||body.reason.length>512)throw new Error('Venta y motivo legítimo requeridos.');
-      const capability=await this.capabilities(expectedToken);if(capability.credit_c_enabled!==true)throw new Error('Notas C deshabilitadas.');
+      const capability=await this.capabilities(expectedToken);if(capability.credit_c_enabled!==true)throw new Error('Notas de crédito deshabilitadas.');
       const value=await request('credit/prepare','POST',body,(await boundSession(expectedToken)).access_token);
-      if(value.document_type!==13||value.status!=='PREPARADO_NO_EMITIDO'||typeof value.operation!=='string'||!/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.test(value.operation))throw new Error('Preparación de Nota C no verificable.');return value;
+      if(![3,8,13].includes(value.document_type)||value.status!=='PREPARADO_NO_EMITIDO'||typeof value.operation!=='string'||!/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.test(value.operation))throw new Error('Preparación de Nota C no verificable.');return value;
     },
     async creditStatus(body,expectedToken){if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Venta requerida.');return checkedCredit(await request('credit/status','POST',body,(await boundSession(expectedToken)).access_token));},
     async creditRequest(body,expectedToken){
       if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Venta requerida.');
-      const capability=await this.capabilities(expectedToken);if(capability.credit_c_enabled!==true||capability.completion_enabled!==true||capability.completion_mode!=='PRODUCCION')throw new Error('Autorización de Nota C deshabilitada.');
+      const capability=await this.capabilities(expectedToken);if(capability.credit_c_enabled!==true||capability.completion_enabled!==true||capability.completion_mode!=='PRODUCCION')throw new Error('Autorización de nota de crédito deshabilitada.');
       const token=(await boundSession(expectedToken)).access_token,key='credit|'+token+'|'+body.saleRef;if(inflight.has(key))return inflight.get(key);
       const work=request('credit/request','POST',body,token).then(checkedCredit).finally(()=>inflight.delete(key));inflight.set(key,work);return work;
     },
     async creditReconcile(body,expectedToken){if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Venta requerida.');return checkedCredit(await request('credit/reconcile','POST',body,(await boundSession(expectedToken)).access_token));},
-    async creditAuthorizeAndConfirm(body,expectedToken){
-      let value;try{value=await this.creditRequest(body,expectedToken);}catch(error){try{value=await this.creditStatus(body,expectedToken);}catch(_){throw error;}if(!['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA','AUTORIZADO_PROD_VERIFICADO'].includes(value.status))throw error;}
-      for(let n=0;n<3&&['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status);n++){try{value=await this.creditReconcile(body,expectedToken);}catch(_){break;}}return value;
-    },
+    async creditAuthorizeAndConfirm(body,expectedToken){return complete(body,expectedToken,true);},
     async creditDocument(body,format,expectedToken){
       if(!['A4','80mm'].includes(format))throw new Error('Formato no disponible.');const status=await this.creditStatus(body,expectedToken);
-      if(status.status!=='AUTORIZADO_PROD_VERIFICADO'||status.receipt?.kind!==13||status.authorization_verified!==true||status.document_available!==true)throw new Error('Nota C sin CAE verificado.');
+      if(status.status!=='AUTORIZADO_PROD_VERIFICADO'||![3,8,13].includes(status.receipt?.kind)||status.authorization_verified!==true||status.document_available!==true)throw new Error('Nota de crédito sin CAE verificado.');
       const token=(await boundSession(expectedToken)).access_token,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
       try{const response=await fetchImpl(origin+'/v1/fiscal/credit/document',{method:'POST',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal,headers:{Authorization:'Bearer '+token,...(businessContext?{'X-Vicora-Context':businessContext}:{}),'Content-Type':'application/json'},body:JSON.stringify({...body,format})});if(!response.ok||response.headers.get('content-type')?.split(';')[0]!=='application/pdf')throw new Error();const blob=await response.blob();if(blob.size>8*1024*1024||await blob.slice(0,5).text()!=='%PDF-')throw new Error();return blob;}catch(_){throw new Error('Documento de Nota C no disponible; no se reenvió.');}finally{clearTimeout(timer);}
     },
@@ -116,18 +134,7 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000,businessConte
       if(!Number.isSafeInteger(version)||version<0||!data||typeof data!=='object')throw new Error('Datos fiscales inválidos.');
       return request('settings','PUT',{version,data},(await boundSession(expectedToken)).access_token);
     },
-    async authorizeAndConfirm(body,expectedToken){
-      // One explicit POST only. Every continuation is a read/consultation.
-      let value;
-      try{value=await this.requestAuthorization(body,expectedToken);}catch(error){
-        try{value=await this.status(body,expectedToken);}catch(_){throw error;}
-        if(!['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA','AUTORIZADO_PROD_VERIFICADO'].includes(value.status))throw error;
-      }
-      for(let n=0;n<3&&['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status);n++){
-        try{value=await this.reconcile(body,expectedToken);}catch(_){break;}
-      }
-      return value;
-    },
+    async authorizeAndConfirm(body,expectedToken){return complete(body,expectedToken,false);},
     async profile(expectedToken){return request('config','GET',null,(await boundSession(expectedToken)).access_token);},
     async saveProfile(profile,reauthenticate,expectedToken){
       const s=await boundSession(expectedToken),fresh=await reauthenticate();
@@ -147,14 +154,14 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=15000,businessConte
       if(value.environment!=='PRODUCCION'||value.state!=='HABILITADO')throw new Error('ARCA no verificó la habilitación fiscal.');
       return value;
     }
-  };
+  };return api;
 }
 async function taxSetup(api,db,business){
   const v=dialog('Datos fiscales para facturación opcional'),msg=node('p');msg.setAttribute('role','status');
   v.d.append(node('p','Completá datos auténticos. No se supone IVA 21%. Estos datos no habilitan por sí solos a emitir ante ARCA.'),msg);
   try{
     const result=await api.taxSettings();let version=result.version,data=result.data;
-    const [customers,products]=await Promise.all([db.from('clientes').select('id_cliente,nombre,apellido,documento').eq('id_negocio',business).order('id_cliente').limit(1000),db.from('productos').select('id_producto,nombre').eq('id_negocio',business).order('id_producto').limit(1000)]);
+    const [customers,products,merchant]=await Promise.all([db.from('clientes').select('id_cliente,nombre,apellido,documento').eq('id_negocio',business).order('id_cliente').limit(1000),db.from('productos').select('id_producto,nombre').eq('id_negocio',business).order('id_producto').limit(1000),db.from('negocios').select('nombre').eq('id_negocio',business).maybeSingle()]);
     if(customers.error||products.error)throw new Error();
     function select(label,options){const wrap=node('label',label),s=node('select');s.style.cssText='display:block;width:100%;margin:8px 0 16px;min-height:42px';for(const [key,label] of options){const o=node('option',label);o.value=key;s.append(o);}wrap.append(s);v.d.append(wrap);return s;}
     const customer=select('Cliente existente',[['','Elegí un cliente'],...(customers.data||[]).map(c=>[c.id_cliente,[c.nombre,c.apellido,c.documento].filter(Boolean).join(' · ')])]);
@@ -169,18 +176,37 @@ async function taxSetup(api,db,business){
     async function save(change){saveCustomer.disabled=saveProduct.disabled=true;try{const next=structuredClone(data);change(next);const saved=await api.saveTaxSettings(version,next);version=saved.version;data=saved.data;msg.textContent='Datos fiscales guardados para este comercio. No se emitió ningún comprobante.';}catch(_){msg.textContent='No se pudo confirmar el cambio. Cerrá y consultá nuevamente antes de reintentar.';}finally{saveCustomer.disabled=saveProduct.disabled=false;}}
     saveCustomer.onclick=()=>{const row=(customers.data||[]).find(c=>c.id_cliente===customer.value);if(!row?.documento||!documentType.value||!condition.value){msg.textContent='Elegí el cliente y completá su documento real desde Clientes.';return;}return save(next=>{next.receivers[row.id_cliente]={source_document:row.documento,document_type:Number(documentType.value),tax_condition:Number(condition.value)};});};
     saveProduct.onclick=()=>{if(!product.value||!vat.value){msg.textContent='Elegí el producto y su tratamiento IVA.';return;}return save(next=>{next.products[product.value]=['EXENTO','NO_GRAVADO'].includes(vat.value)?vat.value:Number(vat.value);});};
+    const tradeLabel=node('label','Nombre comercial del local (para nuevos comprobantes)'),trade=node('input');trade.maxLength=160;trade.value=data.branding?.commercial_name||(!merchant.error?merchant.data?.nombre:'')||'';tradeLabel.append(trade);const saveTrade=node('button','Guardar nombre comercial');saveTrade.onclick=()=>{const name=trade.value.trim();if(!name||name.length>160){msg.textContent='Ingresá el nombre comercial del local.';return;}return save(next=>{next.branding={...(next.branding||{}),commercial_name:name};});};v.d.append(tradeLabel,saveTrade);
     const logoLabel=node('label','Logo opcional (PNG/JPEG, máximo 32 KiB)'),logo=node('input');logo.type='file';logo.accept='image/png,image/jpeg';logoLabel.append(logo);v.d.append(logoLabel);
     const saveLogo=node('button','Guardar logo'),removeLogo=node('button','Quitar logo');saveLogo.type=removeLogo.type='button';v.d.append(saveLogo,removeLogo);
-    saveLogo.onclick=async()=>{const f=logo.files?.[0];if(!f||f.size>32768||!['image/png','image/jpeg'].includes(f.type)){msg.textContent='Elegí un logo PNG o JPEG de hasta 32 KiB.';return;}saveLogo.disabled=true;try{const bytes=new Uint8Array(await f.arrayBuffer());let text='';for(const byte of bytes)text+=String.fromCharCode(byte);await save(next=>{next.branding={logo_base64:btoa(text)};});logo.value='';}finally{saveLogo.disabled=false;}};
-    removeLogo.onclick=()=>save(next=>{delete next.branding;});
+    saveLogo.onclick=async()=>{const f=logo.files?.[0];if(!f||f.size>32768||!['image/png','image/jpeg'].includes(f.type)){msg.textContent='Elegí un logo PNG o JPEG de hasta 32 KiB.';return;}saveLogo.disabled=true;try{const bytes=new Uint8Array(await f.arrayBuffer());let text='';for(const byte of bytes)text+=String.fromCharCode(byte);await save(next=>{next.branding={...(next.branding||{}),logo_base64:btoa(text)};});logo.value='';}finally{saveLogo.disabled=false;}};
+    removeLogo.onclick=()=>save(next=>{if(next.branding){delete next.branding.logo_base64;if(!Object.keys(next.branding).length)delete next.branding;}});
     if((customers.data||[]).length===1000||(products.data||[]).length===1000)v.d.append(node('p','Se muestran los primeros 1000 registros; no se presupone la configuración de otros productos o clientes.'));
   }catch(_){msg.textContent='Configuración fiscal no disponible. El ticket VICORA sigue funcionando.';}
   v.d.append(v.close);v.d.showModal();
 }
-function node(tag,text){const e=document.createElement(tag);if(text)e.textContent=text;return e;}
+function node(tag,text){const e=document.createElement(tag);if(text)e.textContent=text;if(tag==='button'){e.type='button';e.dataset.action=/Nota|crédito/i.test(text||'')?'credit':/Descargar/i.test(text||'')?'download':/Imprimir/i.test(text||'')?'print':/Cerrar|Cancelar|Más tarde/.test(text||'')?'close':'fiscal';if(document.createElementNS){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),path=document.createElementNS('http://www.w3.org/2000/svg','path');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.8');path.setAttribute('d',({print:'M6 9V3h12v6M6 18H4V9h16v9h-2M6 14h12v7H6Z',download:'M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4',close:'M6 6l12 12M6 18L18 6',credit:'M5 7h14v14H5ZM8 3h8v4M8 12h8M8 16h6',fiscal:'M6 3h9l3 3v15H6ZM14 3v5h4M9 12h6M9 16h6'})[e.dataset.action]);svg.append(path);e.insertBefore(svg,e.firstChild);}}return e;}
+function fiscalStyle(){
+ if(document.getElementById('vicoraFiscalStyle'))return;
+ const style=node('style');style.id='vicoraFiscalStyle';style.textContent=`
+ .vf-dialog{font-family:inherit;color:#19334f!important;background:#fff!important;border:1px solid #dbe5ef!important;border-radius:22px!important;padding:clamp(18px,3vw,30px)!important;box-shadow:0 24px 80px #102a4350;max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 32px)!important;overflow:auto!important;overflow-wrap:anywhere}
+ .vf-dialog::backdrop{background:#0c203a99;backdrop-filter:blur(3px)}.vf-dialog h2{font-size:clamp(21px,4vw,27px);line-height:1.25;margin:0 0 18px}.vf-dialog h3{font-size:17px;margin:20px 0 10px}.vf-dialog p{line-height:1.6}.vf-dialog label{font-weight:600;font-size:14px}.vf-dialog input:not([type=checkbox]):not([type=hidden]),.vf-dialog select,.vf-dialog textarea{box-sizing:border-box;width:100%;min-height:46px;padding:11px 13px;border:1px solid #b9cada;border-radius:11px;background:#f9fbfd;color:#19334f;font:inherit;margin:8px 0 15px}.vf-dialog textarea{min-height:100px;resize:vertical}.vf-dialog button{min-height:46px;max-width:100%;padding:12px 17px;margin:6px 8px 6px 0;border:1px solid transparent;border-radius:12px;background:#1958ad;color:#fff;font:inherit;font-weight:700;cursor:pointer;white-space:normal}.vf-dialog button{display:inline-flex;align-items:center;justify-content:center;gap:8px}.vf-dialog button svg{flex:none;width:18px;height:18px}.vf-dialog button:disabled{opacity:.55;cursor:wait}.vf-dialog button[data-action=close]{background:#e9eef3;color:#334155}.vf-dialog button[data-action=credit]{background:#9a4c05;color:#fff}.vf-dialog button[data-action=download]{background:#e8eef5;color:#24415d}.vf-dialog button[data-action=print]{background:#036eaa}.vf-dialog [data-state=success]{padding:14px;border-radius:12px;background:#e8f7ef;color:#166534}.vf-dialog [data-state=pending]{padding:14px;border-radius:12px;background:#fff4d8;color:#784800}.vf-dialog [data-state=error]{padding:14px;border-radius:12px;background:#fff0f0;color:#991b1b}.vf-spinner{width:28px;height:28px;border:3px solid #dce8f5;border-top-color:#1958ad;border-radius:50%;animation:vfspin 1s linear infinite}@keyframes vfspin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.vf-spinner{animation:none}}@media(max-width:550px){.vf-dialog button{width:100%;margin:6px 0}.vf-dialog{width:calc(100vw - 24px)!important}}
+ `;document.head.append(style);
+}
 function dialog(title){
-  const d=node('dialog');d.style.cssText='box-sizing:border-box;width:min(568px,calc(100vw - 20px));max-height:90vh;overflow:auto;border:0;border-radius:14px;padding:24px';
-  d.append(node('h2',title));const close=node('button','Cerrar');close.type='button';close.onclick=()=>d.close();d.addEventListener('close',()=>d.remove());document.body.append(d);return {d,close};
+ fiscalStyle();const d=node('dialog');d.className='vf-dialog';d.style.cssText='box-sizing:border-box;width:min(680px,calc(100vw - 24px));max-height:90vh;overflow:auto';
+ d.append(node('h2',title));const close=node('button','Cerrar');close.type='button';close.dataset.action='close';close.onclick=()=>d.close();d.addEventListener('close',()=>d.remove());document.body.append(d);return {d,close};
+}
+async function fiscalConfirm(title,text){return new Promise(resolve=>{const v=dialog(title),yes=node('button','Confirmar autorización'),no=node('button','Cancelar');yes.dataset.action='credit';no.dataset.action='close';v.d.append(node('p',text),yes,no);let result=false;yes.onclick=()=>{result=true;v.d.close();};no.onclick=()=>v.d.close();v.d.addEventListener('close',()=>resolve(result),{once:true});v.d.showModal();});}
+async function processing(title,work){const v=dialog(title),spin=node('div'),message=node('p','Estamos verificando tu comprobante con ARCA. No vuelvas a emitirlo.');spin.className='vf-spinner';message.setAttribute('role','status');v.d.append(spin,message);v.d.addEventListener('cancel',e=>e.preventDefault());v.d.showModal();try{return await work();}finally{v.d.close();}}
+function deliverPdf(blob,{print=false,format='A4',name='comprobante.pdf',popup=null}={}){
+ const url=URL.createObjectURL(blob);let released=false;const release=()=>{if(!released){released=true;URL.revokeObjectURL(url);}};
+ if(!print){const a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(release,60000);return;}
+ const w=popup;if(!w){const v=dialog('Impresión no disponible');const a=node('a','Descargar PDF '+format);a.href=url;a.download=name;v.d.append(node('p','El navegador bloqueó la vista. Descargá el PDF o permití las ventanas emergentes.'),a,v.close);v.d.addEventListener('close',release,{once:true});v.d.showModal();return;}
+ const doc=w.document;doc.title='Comprobante fiscal · '+format;doc.body.textContent='';const hint=doc.createElement('p');hint.textContent='Si no aparece el diálogo, utilizá Imprimir. En algunos celulares corresponde descargar el PDF.';
+ const btn=doc.createElement('button');btn.textContent='Imprimir';const link=doc.createElement('a');link.href=url;link.download=name;link.textContent='Descargar PDF';const frame=doc.createElement('iframe');frame.title='Comprobante fiscal '+format;frame.style.cssText='width:100%;height:85vh;border:0';frame.src=url;
+ btn.onclick=()=>{try{frame.contentWindow.focus();frame.contentWindow.print();}catch(_){hint.textContent='Utilizá la opción Descargar PDF para imprimir desde tu dispositivo.';}};frame.onload=()=>{try{frame.contentWindow.focus();frame.contentWindow.print();}catch(_){}};doc.body.append(hint,btn,link,frame);
+ const monitor=setInterval(()=>{if(w.closed){clearInterval(monitor);release();}},1000);
 }
 // Guided values remain text-compatible with the existing commercial contract.
 // Unknown historical text is preserved; it is never classified automatically.
@@ -212,7 +238,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
   // Merchant onboarding is separate from invoice emission. Admin may explicitly
   // store a draft/request under its Supabase RLS business; never private keys.
   // No ARCA issuance, WSAA call, invoice number or CAE from this UI.
-  function offlineSetup(loadExisting=false){
+  function offlineSetup(loadExisting=false,alreadyEnabled=false){
     const view=dialog('Facturación electrónica · Alta de comercio');
     view.d.style.cssText='box-sizing:border-box;width:min(680px,calc(100vw - 20px));max-width:680px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:auto;border:1px solid #dfe5ef;border-radius:16px;padding:clamp(14px,3vw,26px);color:#243247;background:#fff;box-shadow:0 22px 70px #11182733';
     const heading=view.d.firstElementChild;
@@ -327,7 +353,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     function renderStatus(record){
       if(!record){message.textContent='No hay una solicitud guardada para este comercio.';return;}
       message.style.color='#334155';
-      message.textContent=record.estado==='SOLICITADA'
+      message.textContent=alreadyEnabled?'Datos del comercio guardados. El servidor informó facturación habilitada; un cambio fiscal puede requerir una nueva verificación.':record.estado==='SOLICITADA'
         ? 'Solicitud registrada y pendiente de revisión. Todavía NO estás autorizado a emitir facturas ARCA.'
         : 'Borrador guardado para este comercio. Podés completarlo y enviarlo cuando quieras.';
     }
@@ -439,27 +465,32 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     const viewed=await db.auth.getSession(),viewToken=expectedToken||viewed.data?.session?.access_token;
     async function guardView(){const now=await db.auth.getSession();if(!viewToken||now.error||now.data?.session?.access_token!==viewToken||generation!==installation)throw new Error('La sesión cambió. Cerrá esta ventana.');}
     await guardView();
-    const view=dialog(credit?'Nota de Crédito C total':'Estado del comprobante');
+    const creditLetter=({3:'A',8:'B',13:'C'})[value.receipt?.kind||value.document_type]||'C';const view=dialog(credit?'Nota de Crédito '+creditLetter+' total':'Estado del comprobante');
     if([1,6,11].includes(value.document_type))view.d.append(node('p','Tipo '+({1:'A',6:'B',11:'C'})[value.document_type]+' determinado por el servidor fiscal.'));
     const labels={NO_DISPONIBLE:'No hay una preparación disponible.',PREPARADO_NO_EMITIDO:'Preparada: no emitida, sin CAE.',EMISION_BLOQUEADA:'Preparada; autorización fiscal deshabilitada.',RESULTADO_INCIERTO:'Resultado incierto. No reenviar; requiere conciliación.',BLOQUEADO:'Operación bloqueada. Requiere revisión.',CONFLICTO_BLOQUEADO:'Respuestas contradictorias. Operación bloqueada sin reenvío.',RECHAZADO:'Solicitud rechazada. No se reenvía automáticamente.',DEMO_CONCILIADO_NO_FISCAL:'Ensayo conciliado. NO FISCAL: no tiene CAE auténtico ni documento fiscal.',AUTORIZADO_HOMO_VERIFICADO:'Autorización de homologación verificada; no es emisión de producción.',PENDIENTE_CONCILIACION:'Solicitud fiscal registrada; falta verificar el resultado con ARCA. No reenviar.',CONSULTA_REGISTRADA:'Consulta registrada; se está verificando el comprobante.',AUTORIZADO_PROD_VERIFICADO:'Comprobante ARCA verificado en producción; CAE validado mediante consulta independiente.'};
-    view.d.append(node('p',labels[value.status]||'Preparada, sin emisión.'),node('p','La venta ya fue registrada una sola vez. El ticket VICORA es NO FISCAL.'));
+    const statusMessage=node('p',labels[value.status]||'Preparada, sin emisión.');statusMessage.dataset.state=value.authorization_verified===true?'success':['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status)?'pending':['RECHAZADO','BLOQUEADO','CONFLICTO_BLOQUEADO'].includes(value.status)?'error':'pending';view.d.append(statusMessage,node('p','La venta ya fue registrada una sola vez. El ticket VICORA es NO FISCAL.'));
     if(['AUTORIZADO_HOMO_VERIFICADO','AUTORIZADO_PROD_VERIFICADO'].includes(value.status)&&value.authorization_verified===true&&value.document_available===true){
       if(value.receipt){const r=value.receipt;view.d.append(node('p','Comprobante '+String(r.point).padStart(5,'0')+'-'+String(r.number).padStart(8,'0')),node('p','CAE: '+r.cae),node('p','Vencimiento: '+r.expiry.slice(6,8)+'/'+r.expiry.slice(4,6)+'/'+r.expiry.slice(0,4)));}
-      for(const format of ['A4','80mm']){
-        const download=node('button',format==='A4'?'Descargar PDF A4':'Descargar / reimprimir 80 mm');download.type='button';
-        download.onclick=async()=>{download.disabled=true;try{const blob=await (credit?api.creditDocument(body,format,viewToken):api.document(body,format,viewToken)),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='vicora-'+(credit?'nota-credito-c-':'')+(value.environment==='PRODUCCION'?'factura-arca':'homologacion')+'-'+format+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(_){view.d.append(node('p','No se pudo verificar el documento. No vuelvas a registrar la venta.'));}finally{download.disabled=false;}};
-        view.d.append(download);
+      const preference=node('select'),preferenceLabel=node('label','Formato fiscal preferido (este comercio en este navegador)');
+      for(const [key,text] of [['ASK','Preguntar siempre'],['A4','A4'],['80mm','80 mm']]){const o=node('option',text);o.value=key;preference.append(o);}
+      const preferenceKey='vicora.fiscal.print.'+business;let preferred='ASK';try{const saved=root.localStorage.getItem(preferenceKey);if(['A4','80mm'].includes(saved))preferred=saved;}catch(_){}preference.value=preferred;
+      preference.onchange=()=>{try{root.localStorage.setItem(preferenceKey,preference.value);}catch(_){}};preferenceLabel.append(preference);view.d.append(preferenceLabel);
+      for(const format of (preferred==='80mm'?['80mm','A4']:['A4','80mm']))for(const print of [true,false]){
+        const download=node('button',(print?'Imprimir ':'Descargar PDF ')+(credit?'Nota C ':'')+format);download.type='button';
+        download.onclick=async()=>{if(download.disabled)return;download.disabled=true;const popup=print?root.open('','_blank'):null;
+          try{if(popup)popup.document.body.textContent='Verificando documento fiscal…';await guardView();const blob=await (credit?api.creditDocument(body,format,viewToken):api.document(body,format,viewToken));await guardView();deliverPdf(blob,{print,format,popup,name:'vicora-'+(credit?'nota-credito-c':'factura-arca')+'-'+format+'.pdf'});}
+          catch(_){if(popup)popup.close();view.d.append(node('p','No se pudo verificar el documento. Podés consultarlo nuevamente sin emitir.'));}finally{download.disabled=false;}};view.d.append(download);
       }
     }else view.d.append(node('p','No hay CAE verificado: no se habilitan PDF, QR ni impresión fiscal.'));
     if(['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'].includes(value.status)){
-      const reconcile=node('button','Consultar y conciliar (sin reenviar)');reconcile.type='button';reconcile.onclick=async()=>{reconcile.disabled=true;try{const result=await (credit?api.creditReconcile(body,viewToken):api.reconcile(body,viewToken));view.d.close();await showStatus(body,result,credit,viewToken);}catch(_){view.d.append(node('p','Conciliación no disponible. La solicitud permanece bloqueada.'));}finally{reconcile.disabled=false;}};view.d.append(reconcile);
+      const reconcile=node('button','Consultar y conciliar (sin reenviar)');reconcile.type='button';reconcile.onclick=async()=>{reconcile.disabled=true;try{const result=await (credit?api.creditReconcile(body,viewToken):api.reconcile(body,viewToken));view.d.close();await showStatus(body,result,credit,viewToken);}catch(_){view.d.append(node('p','Conciliación no disponible. La solicitud permanece bloqueada.'));}finally{reconcile.disabled=false;}};view.d.append(node('p','La autorización todavía está siendo verificada. Tu venta ya está registrada. Podés consultar el comprobante más tarde sin volver a emitirlo.'),reconcile);
     }
     if(credit&&['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)){
-      const send=node('button','Solicitar autorización de esta Nota C');send.type='button';send.onclick=async()=>{if(!root.confirm('¿Autorizar la Nota de Crédito C TOTAL del comprobante original? No se repiten ventas, stock, caja ni reintegros.'))return;send.disabled=true;try{const result=await api.creditAuthorizeAndConfirm(body,viewToken);view.d.close();await showStatus(body,result,true,viewToken);}catch(_){view.d.append(node('p','No se pudo confirmar la Nota C. Consultá su estado; no reenvíes ni prepares otra.'));}finally{send.disabled=false;}};view.d.append(send);
+      const send=node('button','Solicitar autorización de esta Nota de Crédito '+creditLetter);send.type='button';send.onclick=async()=>{if(send.disabled)return;send.disabled=true;try{if(!await fiscalConfirm('Autorizar Nota de Crédito '+creditLetter+' total','La nota fiscal no devuelve productos al stock, no registra reintegros y no modifica caja, cobros ni la venta. ¿Confirmás la autorización del total del original?'))return;const result=await processing('Generando Nota de Crédito '+creditLetter,()=>api.creditAuthorizeAndConfirm(body,viewToken));view.d.close();await showStatus(body,result,true,viewToken);}catch(_){view.d.append(node('p','No se pudo confirmar la nota de crédito. Consultá su estado; no reenvíes ni prepares otra.'));}finally{send.disabled=false;}};view.d.append(send);
     }
-    if(!credit&&value.status==='AUTORIZADO_PROD_VERIFICADO'&&value.receipt?.kind===11){
-      const cap=await refresh(viewToken);if(cap.credit_c_enabled===true){const note=node('button','Ver / preparar Nota de Crédito C total');note.type='button';note.onclick=async()=>{note.disabled=true;try{const state=await api.creditStatus(body,viewToken);if(state.status!=='NO_DISPONIBLE'){view.d.close();return showStatus(body,state,true,viewToken);}const form=dialog('Preparar Nota de Crédito C total');form.d.append(node('p','Sólo por una anulación fiscal legítima. El servidor toma el total y los datos del original verificado. Esto no registra una devolución comercial ni un reintegro.'));
-      const reason=node('input');reason.type='text';reason.maxLength=512;reason.placeholder='Motivo legítimo';reason.setAttribute('aria-label','Motivo legítimo de la Nota C');const prepare=node('button','Preparar Nota C (sin emitir)');prepare.type='button';prepare.onclick=async()=>{if(reason.value.trim().length<5)return;prepare.disabled=true;try{const result=await api.creditPrepare({...body,reason:reason.value.trim()},viewToken);form.d.close();view.d.close();await showStatus(body,result,true,viewToken);}catch(_){form.d.append(node('p','Preparación bloqueada. No se emitió ni se reservó numeración.'));}finally{prepare.disabled=false;}};form.d.append(reason,prepare,form.close);form.d.showModal();}catch(_){view.d.append(node('p','No se pudo consultar la Nota C. La factura original permanece conservada.'));}finally{note.disabled=false;}};view.d.append(note);}
+    if(!credit&&value.status==='AUTORIZADO_PROD_VERIFICADO'&&[1,6,11].includes(value.receipt?.kind)){
+      const cap=await refresh(viewToken);if(cap.credit_c_enabled===true&&(cap.credit_document_types||[13]).includes(({1:3,6:8,11:13})[value.receipt.kind])){const note=node('button','Ver / preparar Nota de Crédito '+({1:'A',6:'B',11:'C'})[value.receipt.kind]+' total');note.type='button';note.onclick=async()=>{note.disabled=true;try{const state=await api.creditStatus(body,viewToken);if(state.status!=='NO_DISPONIBLE'){view.d.close();return showStatus(body,state,true,viewToken);}const form=dialog('Preparar Nota de Crédito '+({1:'A',6:'B',11:'C'})[value.receipt.kind]+' total');view.d.close();form.d.append(node('p','Original: '+String(value.receipt.point).padStart(5,'0')+'-'+String(value.receipt.number).padStart(8,'0')+' · '+value.receipt.date),node('p','Sólo por una anulación fiscal legítima. El servidor toma el total y los datos del original verificado. Esto no registra una devolución comercial ni un reintegro.'));
+      const reason=node('textarea');reason.maxLength=512;reason.placeholder='Motivo legítimo';reason.setAttribute('aria-label','Motivo legítimo de la Nota C');const prepare=node('button','Preparar nota de crédito (sin emitir)');prepare.type='button';prepare.onclick=async()=>{if(reason.value.trim().length<5)return;prepare.disabled=true;try{const result=await api.creditPrepare({...body,reason:reason.value.trim()},viewToken);form.d.close();view.d.close();await showStatus(body,result,true,viewToken);}catch(_){form.d.append(node('p','Preparación bloqueada. No se emitió ni se reservó numeración.'));}finally{prepare.disabled=false;}};form.d.append(reason,prepare,form.close);form.d.showModal();}catch(_){view.d.append(node('p','No se pudo consultar la Nota C. La factura original permanece conservada.'));}finally{note.disabled=false;}};view.d.append(note);}
     }
     view.d.append(view.close);view.d.showModal();return value;
   }
@@ -481,7 +512,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
         value=await api.prepare(body,token);
       }
       await sameSession();
-      if(['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)&&capability.completion_enabled===true)value=await api.authorizeAndConfirm(body,token);
+      if(['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)&&capability.completion_enabled===true)value=await processing('Generando factura electrónica',()=>api.authorizeAndConfirm(body,token));
       await sameSession();return showStatus(body,value,false,token);
     })().finally(()=>choosing.delete(choiceKey));
     choosing.set(choiceKey,pending);return pending;
@@ -499,14 +530,14 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
       const view=dialog('Configuración · Facturación electrónica');
       view.d.append(node('p','Opcional por comercio. Usá la identidad fiscal propia del comercio. Guardar no habilita emisión ni valida representación.'));
       try{
-        const registration=await api.enrollmentStatus();
+        capability=await refresh();const registration=await api.enrollmentStatus();
         const labels={SIN_CONFIGURAR:'Sin configurar',PENDIENTE_VERIFICACION:'Pendiente de verificar ante ARCA',HABILITADO:'Emisor verificado',REQUIERE_REVALIDACION:'Necesita revalidación'};
-        view.d.append(node('p','Estado fiscal del comercio: '+(labels[registration.state]||'No disponible')));
+        const active=registration.state==='HABILITADO'&&capability.completion_enabled===true;const state=node('p','Estado fiscal del comercio: '+(active?'Facturación electrónica habilitada':registration.state==='HABILITADO'?'Emisor verificado · emisión temporalmente no disponible':labels[registration.state]||'No disponible'));state.dataset.state=active?'success':'pending';view.d.append(state);if(Number.isSafeInteger(capability.operational_expires)){const days=Math.ceil((capability.operational_expires*1000-Date.now())/86400000);if(days<=15)view.d.append(node('p',days>0?'La autorización operativa requiere renovación en '+days+' días.':'Autorización operativa vencida: requiere revisión privada.'));}
       }catch(_){view.d.append(node('p','No se pudo consultar la verificación fiscal. Esto no habilita emisión.'));}
       if(capability.daily_enabled===true){
-        const taxes=node('button','Condiciones fiscales de clientes e IVA de productos');taxes.type='button';taxes.onclick=()=>taxSetup(api,db,business);view.d.append(taxes);
+        const taxes=node('button','Condiciones fiscales de clientes e IVA de productos');taxes.type='button';taxes.onclick=()=>{view.d.close();taxSetup(api,db,business);};view.d.append(taxes);
       }
-      const details=node('button','Datos del comprobante e Ingresos Brutos');details.type='button';details.onclick=()=>{view.d.close();offlineSetup(true);};view.d.append(details);
+      const details=node('button','Datos del comprobante e Ingresos Brutos');details.type='button';details.onclick=()=>{view.d.close();offlineSetup(true,capability.completion_enabled===true);};view.d.append(details);
       const message=node('p');message.setAttribute('role','status');view.d.append(message);
       const form=node('form');view.d.append(form);
       try{
@@ -577,5 +608,5 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
     };
   }
 };
-if(typeof module==='object'&&module.exports)module.exports={client};
+if(typeof module==='object'&&module.exports)module.exports={client,deliverPdf};
 })(typeof window==='object'?window:globalThis);
