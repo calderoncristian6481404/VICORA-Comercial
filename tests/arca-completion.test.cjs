@@ -5,7 +5,7 @@ const operation='00000000-0000-4000-8000-000000000001',body={saleRef:'SALE'};
 const db={auth:{getSession:async()=>({data:{session:{access_token:'SYNTHETIC_SESSION'}}})}};
 const caps={completion_enabled:true,completion_mode:'LAB_TLS',preparation_enabled:true,configuration_enabled:false,document_types:[11],can_send:false,runtime_enabled:false};
 const uncertain={status:'RESULTADO_INCIERTO',operation,environment:'LAB_TLS',authorization_verified:false,document_available:false,can_send:false,runtime_enabled:false};
-function api(fn){return client({db,apiOrigin:'https://fiscal.invalid',fetchImpl:fn});}
+function api(fn){return client({recoveryDelayMs:0,sleep:async()=>{},db,apiOrigin:'https://fiscal.invalid',fetchImpl:fn});}
 function ok(x){return {ok:true,json:async()=>x};}
 test('emitter-wide configuration is queried, not supplied or enabled for each sale',async()=>{
  const calls=[];const c=api(async(url,o)=>{calls.push([url,o]);return ok(url.endsWith('/capabilities')?caps:uncertain);});

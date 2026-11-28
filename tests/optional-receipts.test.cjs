@@ -64,6 +64,6 @@ test('concurrent client retries share one preparation and server errors cannot b
 test('timeout does not retry or invoke sale persistence; malformed and foreign-issuer client fields rejected',async()=>{
  let calls=0;const db={auth:{getSession:async()=>({data:{session:{access_token:'SYNTHETIC'}}})}};
  const c=client({db,apiOrigin:'https://fiscal.invalid',fetchImpl:async()=>{calls++;const e=new Error();e.name='AbortError';throw e;}});
- await assert.rejects(c.prepare({saleRef:'SALE-A'}),/No se reenvió/);assert.equal(calls,1);
+ await assert.rejects(c.prepare({saleRef:'SALE-A'}),/no se reenvió/i);assert.equal(calls,1);
  await assert.rejects(c.prepare({saleRef:'SALE-A',issuer:'UNTRUSTED'}));assert.equal(calls,1);
 });

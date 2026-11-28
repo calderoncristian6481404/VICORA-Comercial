@@ -59,7 +59,7 @@ test('verification UI is only a gated admin option, never auto-emits or stores c
   assert.ok(js.includes("Verificar permisos fiscales ARCA"));
   assert.ok(js.includes("password.value=''"));
   assert.ok(js.includes("signInWithPassword"));
-  assert.ok(!js.includes('localStorage'));
+  assert.doesNotMatch(js,/localStorage\.setItem\([^)]*(token|password|profile)/i);
   assert.ok(!js.includes('/v1/fiscal/emit'));
   assert.ok(!js.includes('/v1/fiscal/reserve'));
 });

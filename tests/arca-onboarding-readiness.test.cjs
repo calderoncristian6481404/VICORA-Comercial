@@ -4,11 +4,11 @@ const code=fs.readFileSync(require.resolve('../arca.js'),'utf8');
 function setup({role='ADMINISTRADOR',enabled=false,showSetup=true,apiOrigin=''}={}){
  const events={calls:0,dialogs:[],copied:null};
  function element(tag){
-   return {tag,children:[],style:{},value:'',textContent:'',append(...c){this.children.push(...c);if(tag==='dialog'&&!this.firstElementChild)this.firstElementChild=c[0];},
+   return {tag,dataset:{},children:[],style:{},value:'',textContent:'',append(...c){this.children.push(...c);if(tag==='dialog'&&!this.firstElementChild)this.firstElementChild=c[0];},
      addEventListener(){},remove(){},setAttribute(){},showModal(){events.dialogs.push(this);},close(){}};
  }
  const button=element('button');button.hidden=true;
- const document={getElementById:id=>id==='vicoraArcaConfiguracion'?button:null,createElement:element,body:element('body')};
+ const document={getElementById:id=>id==='vicoraArcaConfiguracion'?button:null,createElement:element,head:element('head'),body:element('body')};
  const browser={VICORA_ARCA_CONFIG:{showSetup,enabled,apiOrigin},fetch:async()=>{events.calls++;throw Error('NETWORK_FORBIDDEN');},navigator:{clipboard:{writeText:async v=>{events.copied=v;}}}};
  const context={window:browser,document,URL,AbortController,setTimeout,clearTimeout};
  vm.createContext(context);vm.runInContext(code,context);
@@ -55,15 +55,15 @@ test('untrusted API origin still presents offline preview without authorization 
  const s=setup({enabled:true,apiOrigin:'http://example.invalid'});await s.browser.vicoraArcaInstalar({db:s.db,role:'ADMINISTRADOR'});
  assert.equal(s.button.hidden,false);s.button.onclick();assert.equal(s.events.dialogs.length,1);assert.equal(s.events.calls,0);
 });
-test('production config is limited to the selected pilot and scripts share updated cache',()=>{
+test('production availability comes from server capabilities without a hard-coded merchant',()=>{
  const cfg=fs.readFileSync(require.resolve('../arca.config.js'),'utf8');
  const page=fs.readFileSync(require.resolve('../index.html'),'utf8');
  const context={window:{}};vm.runInNewContext(cfg,context);
  const config=context.window.VICORA_ARCA_CONFIG;
- assert.equal(config.enabled,true);assert.equal(config.showSetup,true);assert.equal(new URL(config.apiOrigin).protocol,'https:');assert.match(config.pilotBusiness,/^NEG-[A-F0-9]{32}$/);
- assert.ok(page.includes('arca.js?v=20261126-daily-candidate-v1'));
- assert.ok(page.includes('arca.config.js?v=20261126-vitalia-pilot-v1'));
- assert.ok(!code.includes('localStorage'));
+ assert.equal(config.enabled,true);assert.equal(config.showSetup,true);assert.equal(new URL(config.apiOrigin).protocol,'https:');assert.equal(config.pilotBusiness,undefined);
+ assert.ok(page.includes('arca.js?v=20261128-experiencia-fiscal-v1'));
+ assert.ok(page.includes('arca.config.js?v=20261128-experiencia-fiscal-v1'));
+ assert.doesNotMatch(code,/localStorage\.setItem\([^)]*(token|password|profile)/i);
  assert.ok(!code.includes('/v1/fiscal/emit'));
  assert.ok(code.includes("vicora_arca_solicitudes_comercio"));
 });

@@ -4,11 +4,11 @@ const code=fs.readFileSync(require.resolve('../arca.js'),'utf8');
 function setup({role='ADMINISTRADOR',enabled=false,showSetup=true,apiOrigin=''}={}){
  const events={calls:0,dialogs:[],copied:null};
  function element(tag){
-   return {tag,children:[],style:{},value:'',textContent:'',append(...c){this.children.push(...c);if(tag==='dialog'&&!this.firstElementChild)this.firstElementChild=c[0];},
+   return {tag,dataset:{},children:[],style:{},value:'',textContent:'',append(...c){this.children.push(...c);if(tag==='dialog'&&!this.firstElementChild)this.firstElementChild=c[0];},
      addEventListener(){},remove(){},setAttribute(){},showModal(){events.dialogs.push(this);},close(){}};
  }
  const button=element('button');button.hidden=true;
- const document={getElementById:id=>id==='vicoraArcaConfiguracion'?button:null,createElement:element,body:element('body')};
+ const document={getElementById:id=>id==='vicoraArcaConfiguracion'?button:null,createElement:element,head:element('head'),body:element('body')};
  const browser={VICORA_ARCA_CONFIG:{showSetup,enabled,apiOrigin},fetch:async()=>{events.calls++;throw Error('NETWORK_FORBIDDEN');},navigator:{clipboard:{writeText:async v=>{events.copied=v;}}}};
  const context={window:browser,document,URL,AbortController,setTimeout,clearTimeout};
  vm.createContext(context);vm.runInContext(code,context);
