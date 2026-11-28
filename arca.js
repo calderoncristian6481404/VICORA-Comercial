@@ -5,7 +5,7 @@ let installation=0;
 function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=60000,businessContext=null,recoveryDelayMs=3000,recoveryAttempts=5,sleep=ms=>new Promise(r=>setTimeout(r,ms)),onDiagnostic=()=>{}}){
   const u=new URL(apiOrigin);
   if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.pathname!=='/')throw new Error('Configuración fiscal no disponible.');
-  const origin=u.origin,inflight=new Map();
+  const origin=u.origin,inflight=new Map(),workflows=new Map();
   const budget=path=>['capabilities','settings','config'].includes(path)?Math.min(timeoutMs,15000):timeoutMs;
   const pendingStates=['RESULTADO_INCIERTO','PENDIENTE_CONCILIACION','CONSULTA_REGISTRADA'];
   function diagnostic(stage,start,category){try{onDiagnostic({stage,duration_ms:Math.max(0,Date.now()-start),category});}catch(_){} }
@@ -36,6 +36,15 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=60000,businessConte
     return value;
   }
   function checkedCredit(value){checkedStatus(value);if(value.status==='AUTORIZADO_PROD_VERIFICADO'&&![3,8,13].includes(value.receipt?.kind))throw new Error('La respuesta no pertenece a una Nota C.');if(['AUTORIZADO_HOMO_VERIFICADO','DEMO_CONCILIADO_NO_FISCAL'].includes(value.status))throw new Error('Una Nota C requiere evidencia auténtica de producción.');return value;}
+  async function complete(body,expectedToken,credit){
+    const token=(await boundSession(expectedToken)).access_token,key=(credit?'credit-flow|':'invoice-flow|')+token+'|'+body?.saleRef;
+    if(workflows.has(key))return workflows.get(key);
+    const work=(async()=>{let value;try{value=await (credit?api.creditRequest(body,token):api.requestAuthorization(body,token));}
+      catch(error){try{value=await (credit?api.creditStatus(body,token):api.status(body,token));}catch(_){throw error;}
+        if(!pendingStates.includes(value.status)&&!['AUTORIZADO_PROD_VERIFICADO','AUTORIZADO_HOMO_VERIFICADO'].includes(value.status))throw error;}
+      const result=await recover(body,token,credit,value);await boundSession(token);return result;
+    })().finally(()=>workflows.delete(key));workflows.set(key,work);return work;
+  }
   async function session(){const {data,error}=await db.auth.getSession();if(error||!data?.session?.access_token)throw new Error('Iniciá sesión nuevamente.');return data.session;}
   async function boundSession(expected){const current=await session();if(expected&&current.access_token!==expected)throw new Error('La sesión cambió. Volvé a consultar la venta.');return current;}
   async function request(path,method,body,token,reauth){
@@ -113,13 +122,7 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=60000,businessConte
       const work=request('credit/request','POST',body,token).then(checkedCredit).finally(()=>inflight.delete(key));inflight.set(key,work);return work;
     },
     async creditReconcile(body,expectedToken){if(!body||Object.keys(body).length!==1||typeof body.saleRef!=='string'||!body.saleRef||body.saleRef.length>128)throw new Error('Venta requerida.');return checkedCredit(await request('credit/reconcile','POST',body,(await boundSession(expectedToken)).access_token));},
-    async creditAuthorizeAndConfirm(body,expectedToken){
-      const token=(await boundSession(expectedToken)).access_token;let value;
-      try{value=await this.creditRequest(body,token);}catch(error){
-        try{value=await this.creditStatus(body,token);}catch(_){throw error;}
-        if(!pendingStates.includes(value.status)&&value.status!=='AUTORIZADO_PROD_VERIFICADO')throw error;
-      }return recover(body,token,true,value);
-    },
+    async creditAuthorizeAndConfirm(body,expectedToken){return complete(body,expectedToken,true);},
     async creditDocument(body,format,expectedToken){
       if(!['A4','80mm'].includes(format))throw new Error('Formato no disponible.');const status=await this.creditStatus(body,expectedToken);
       if(status.status!=='AUTORIZADO_PROD_VERIFICADO'||![3,8,13].includes(status.receipt?.kind)||status.authorization_verified!==true||status.document_available!==true)throw new Error('Nota de crédito sin CAE verificado.');
@@ -131,13 +134,7 @@ function client({db,apiOrigin,fetchImpl=root.fetch,timeoutMs=60000,businessConte
       if(!Number.isSafeInteger(version)||version<0||!data||typeof data!=='object')throw new Error('Datos fiscales inválidos.');
       return request('settings','PUT',{version,data},(await boundSession(expectedToken)).access_token);
     },
-    async authorizeAndConfirm(body,expectedToken){
-      const token=(await boundSession(expectedToken)).access_token;let value;
-      try{value=await this.requestAuthorization(body,token);}catch(error){
-        try{value=await this.status(body,token);}catch(_){throw error;}
-        if(!pendingStates.includes(value.status)&&!['AUTORIZADO_PROD_VERIFICADO','AUTORIZADO_HOMO_VERIFICADO'].includes(value.status))throw error;
-      }return recover(body,token,false,value);
-    },
+    async authorizeAndConfirm(body,expectedToken){return complete(body,expectedToken,false);},
     async profile(expectedToken){return request('config','GET',null,(await boundSession(expectedToken)).access_token);},
     async saveProfile(profile,reauthenticate,expectedToken){
       const s=await boundSession(expectedToken),fresh=await reauthenticate();
@@ -164,7 +161,7 @@ async function taxSetup(api,db,business){
   v.d.append(node('p','Completá datos auténticos. No se supone IVA 21%. Estos datos no habilitan por sí solos a emitir ante ARCA.'),msg);
   try{
     const result=await api.taxSettings();let version=result.version,data=result.data;
-    const [customers,products]=await Promise.all([db.from('clientes').select('id_cliente,nombre,apellido,documento').eq('id_negocio',business).order('id_cliente').limit(1000),db.from('productos').select('id_producto,nombre').eq('id_negocio',business).order('id_producto').limit(1000)]);
+    const [customers,products,merchant]=await Promise.all([db.from('clientes').select('id_cliente,nombre,apellido,documento').eq('id_negocio',business).order('id_cliente').limit(1000),db.from('productos').select('id_producto,nombre').eq('id_negocio',business).order('id_producto').limit(1000),db.from('negocios').select('nombre').eq('id_negocio',business).maybeSingle()]);
     if(customers.error||products.error)throw new Error();
     function select(label,options){const wrap=node('label',label),s=node('select');s.style.cssText='display:block;width:100%;margin:8px 0 16px;min-height:42px';for(const [key,label] of options){const o=node('option',label);o.value=key;s.append(o);}wrap.append(s);v.d.append(wrap);return s;}
     const customer=select('Cliente existente',[['','Elegí un cliente'],...(customers.data||[]).map(c=>[c.id_cliente,[c.nombre,c.apellido,c.documento].filter(Boolean).join(' · ')])]);
@@ -179,7 +176,7 @@ async function taxSetup(api,db,business){
     async function save(change){saveCustomer.disabled=saveProduct.disabled=true;try{const next=structuredClone(data);change(next);const saved=await api.saveTaxSettings(version,next);version=saved.version;data=saved.data;msg.textContent='Datos fiscales guardados para este comercio. No se emitió ningún comprobante.';}catch(_){msg.textContent='No se pudo confirmar el cambio. Cerrá y consultá nuevamente antes de reintentar.';}finally{saveCustomer.disabled=saveProduct.disabled=false;}}
     saveCustomer.onclick=()=>{const row=(customers.data||[]).find(c=>c.id_cliente===customer.value);if(!row?.documento||!documentType.value||!condition.value){msg.textContent='Elegí el cliente y completá su documento real desde Clientes.';return;}return save(next=>{next.receivers[row.id_cliente]={source_document:row.documento,document_type:Number(documentType.value),tax_condition:Number(condition.value)};});};
     saveProduct.onclick=()=>{if(!product.value||!vat.value){msg.textContent='Elegí el producto y su tratamiento IVA.';return;}return save(next=>{next.products[product.value]=['EXENTO','NO_GRAVADO'].includes(vat.value)?vat.value:Number(vat.value);});};
-    const tradeLabel=node('label','Nombre comercial del local (para nuevos comprobantes)'),trade=node('input');trade.maxLength=160;trade.value=data.branding?.commercial_name||'';tradeLabel.append(trade);const saveTrade=node('button','Guardar nombre comercial');saveTrade.onclick=()=>{const name=trade.value.trim();if(!name||name.length>160){msg.textContent='Ingresá el nombre comercial del local.';return;}return save(next=>{next.branding={...(next.branding||{}),commercial_name:name};});};v.d.append(tradeLabel,saveTrade);
+    const tradeLabel=node('label','Nombre comercial del local (para nuevos comprobantes)'),trade=node('input');trade.maxLength=160;trade.value=data.branding?.commercial_name||(!merchant.error?merchant.data?.nombre:'')||'';tradeLabel.append(trade);const saveTrade=node('button','Guardar nombre comercial');saveTrade.onclick=()=>{const name=trade.value.trim();if(!name||name.length>160){msg.textContent='Ingresá el nombre comercial del local.';return;}return save(next=>{next.branding={...(next.branding||{}),commercial_name:name};});};v.d.append(tradeLabel,saveTrade);
     const logoLabel=node('label','Logo opcional (PNG/JPEG, máximo 32 KiB)'),logo=node('input');logo.type='file';logo.accept='image/png,image/jpeg';logoLabel.append(logo);v.d.append(logoLabel);
     const saveLogo=node('button','Guardar logo'),removeLogo=node('button','Quitar logo');saveLogo.type=removeLogo.type='button';v.d.append(saveLogo,removeLogo);
     saveLogo.onclick=async()=>{const f=logo.files?.[0];if(!f||f.size>32768||!['image/png','image/jpeg'].includes(f.type)){msg.textContent='Elegí un logo PNG o JPEG de hasta 32 KiB.';return;}saveLogo.disabled=true;try{const bytes=new Uint8Array(await f.arrayBuffer());let text='';for(const byte of bytes)text+=String.fromCharCode(byte);await save(next=>{next.branding={...(next.branding||{}),logo_base64:btoa(text)};});logo.value='';}finally{saveLogo.disabled=false;}};
@@ -188,12 +185,12 @@ async function taxSetup(api,db,business){
   }catch(_){msg.textContent='Configuración fiscal no disponible. El ticket VICORA sigue funcionando.';}
   v.d.append(v.close);v.d.showModal();
 }
-function node(tag,text){const e=document.createElement(tag);if(text)e.textContent=text;if(tag==='button'){e.type='button';e.dataset.action=/Nota|crédito/i.test(text||'')?'credit':/Descargar/i.test(text||'')?'download':/Imprimir/i.test(text||'')?'print':/Cerrar|Cancelar|Más tarde/.test(text||'')?'close':'fiscal';}return e;}
+function node(tag,text){const e=document.createElement(tag);if(text)e.textContent=text;if(tag==='button'){e.type='button';e.dataset.action=/Nota|crédito/i.test(text||'')?'credit':/Descargar/i.test(text||'')?'download':/Imprimir/i.test(text||'')?'print':/Cerrar|Cancelar|Más tarde/.test(text||'')?'close':'fiscal';if(document.createElementNS){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),path=document.createElementNS('http://www.w3.org/2000/svg','path');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.8');path.setAttribute('d',({print:'M6 9V3h12v6M6 18H4V9h16v9h-2M6 14h12v7H6Z',download:'M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4',close:'M6 6l12 12M6 18L18 6',credit:'M5 7h14v14H5ZM8 3h8v4M8 12h8M8 16h6',fiscal:'M6 3h9l3 3v15H6ZM14 3v5h4M9 12h6M9 16h6'})[e.dataset.action]);svg.append(path);e.insertBefore(svg,e.firstChild);}}return e;}
 function fiscalStyle(){
  if(document.getElementById('vicoraFiscalStyle'))return;
  const style=node('style');style.id='vicoraFiscalStyle';style.textContent=`
  .vf-dialog{font-family:inherit;color:#19334f!important;background:#fff!important;border:1px solid #dbe5ef!important;border-radius:22px!important;padding:clamp(18px,3vw,30px)!important;box-shadow:0 24px 80px #102a4350;max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 32px)!important;overflow:auto!important;overflow-wrap:anywhere}
- .vf-dialog::backdrop{background:#0c203a99;backdrop-filter:blur(3px)}.vf-dialog h2{font-size:clamp(21px,4vw,27px);line-height:1.25;margin:0 0 18px}.vf-dialog h3{font-size:17px;margin:20px 0 10px}.vf-dialog p{line-height:1.6}.vf-dialog label{font-weight:600;font-size:14px}.vf-dialog input:not([type=checkbox]):not([type=hidden]),.vf-dialog select,.vf-dialog textarea{box-sizing:border-box;width:100%;min-height:46px;padding:11px 13px;border:1px solid #b9cada;border-radius:11px;background:#f9fbfd;color:#19334f;font:inherit;margin:8px 0 15px}.vf-dialog textarea{min-height:100px;resize:vertical}.vf-dialog button{min-height:46px;max-width:100%;padding:12px 17px;margin:6px 8px 6px 0;border:1px solid transparent;border-radius:12px;background:#1958ad;color:#fff;font:inherit;font-weight:700;cursor:pointer;white-space:normal}.vf-dialog button:disabled{opacity:.55;cursor:wait}.vf-dialog button[data-action=close]{background:#e9eef3;color:#334155}.vf-dialog button[data-action=credit]{background:#9a4c05;color:#fff}.vf-dialog button[data-action=download]{background:#e8eef5;color:#24415d}.vf-dialog button[data-action=print]{background:#036eaa}.vf-dialog [data-state=success]{padding:14px;border-radius:12px;background:#e8f7ef;color:#166534}.vf-dialog [data-state=pending]{padding:14px;border-radius:12px;background:#fff4d8;color:#784800}.vf-dialog [data-state=error]{padding:14px;border-radius:12px;background:#fff0f0;color:#991b1b}.vf-spinner{width:28px;height:28px;border:3px solid #dce8f5;border-top-color:#1958ad;border-radius:50%;animation:vfspin 1s linear infinite}@keyframes vfspin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.vf-spinner{animation:none}}@media(max-width:550px){.vf-dialog button{width:100%;margin:6px 0}.vf-dialog{width:calc(100vw - 24px)!important}}
+ .vf-dialog::backdrop{background:#0c203a99;backdrop-filter:blur(3px)}.vf-dialog h2{font-size:clamp(21px,4vw,27px);line-height:1.25;margin:0 0 18px}.vf-dialog h3{font-size:17px;margin:20px 0 10px}.vf-dialog p{line-height:1.6}.vf-dialog label{font-weight:600;font-size:14px}.vf-dialog input:not([type=checkbox]):not([type=hidden]),.vf-dialog select,.vf-dialog textarea{box-sizing:border-box;width:100%;min-height:46px;padding:11px 13px;border:1px solid #b9cada;border-radius:11px;background:#f9fbfd;color:#19334f;font:inherit;margin:8px 0 15px}.vf-dialog textarea{min-height:100px;resize:vertical}.vf-dialog button{min-height:46px;max-width:100%;padding:12px 17px;margin:6px 8px 6px 0;border:1px solid transparent;border-radius:12px;background:#1958ad;color:#fff;font:inherit;font-weight:700;cursor:pointer;white-space:normal}.vf-dialog button{display:inline-flex;align-items:center;justify-content:center;gap:8px}.vf-dialog button svg{flex:none;width:18px;height:18px}.vf-dialog button:disabled{opacity:.55;cursor:wait}.vf-dialog button[data-action=close]{background:#e9eef3;color:#334155}.vf-dialog button[data-action=credit]{background:#9a4c05;color:#fff}.vf-dialog button[data-action=download]{background:#e8eef5;color:#24415d}.vf-dialog button[data-action=print]{background:#036eaa}.vf-dialog [data-state=success]{padding:14px;border-radius:12px;background:#e8f7ef;color:#166534}.vf-dialog [data-state=pending]{padding:14px;border-radius:12px;background:#fff4d8;color:#784800}.vf-dialog [data-state=error]{padding:14px;border-radius:12px;background:#fff0f0;color:#991b1b}.vf-spinner{width:28px;height:28px;border:3px solid #dce8f5;border-top-color:#1958ad;border-radius:50%;animation:vfspin 1s linear infinite}@keyframes vfspin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.vf-spinner{animation:none}}@media(max-width:550px){.vf-dialog button{width:100%;margin:6px 0}.vf-dialog{width:calc(100vw - 24px)!important}}
  `;document.head.append(style);
 }
 function dialog(title){
@@ -489,7 +486,7 @@ root.vicoraArcaInstalar=async function({db,createAuthClient,role}){
       const reconcile=node('button','Consultar y conciliar (sin reenviar)');reconcile.type='button';reconcile.onclick=async()=>{reconcile.disabled=true;try{const result=await (credit?api.creditReconcile(body,viewToken):api.reconcile(body,viewToken));view.d.close();await showStatus(body,result,credit,viewToken);}catch(_){view.d.append(node('p','Conciliación no disponible. La solicitud permanece bloqueada.'));}finally{reconcile.disabled=false;}};view.d.append(node('p','La autorización todavía está siendo verificada. Tu venta ya está registrada. Podés consultar el comprobante más tarde sin volver a emitirlo.'),reconcile);
     }
     if(credit&&['PREPARADO_NO_EMITIDO','EMISION_BLOQUEADA'].includes(value.status)){
-      const send=node('button','Solicitar autorización de esta Nota de Crédito '+creditLetter);send.type='button';send.onclick=async()=>{if(!await fiscalConfirm('Autorizar Nota de Crédito '+creditLetter+' total','La nota fiscal no devuelve productos al stock, no registra reintegros y no modifica caja, cobros ni la venta. ¿Confirmás la autorización del total del original?'))return;send.disabled=true;try{const result=await processing('Generando Nota de Crédito '+creditLetter,()=>api.creditAuthorizeAndConfirm(body,viewToken));view.d.close();await showStatus(body,result,true,viewToken);}catch(_){view.d.append(node('p','No se pudo confirmar la Nota C. Consultá su estado; no reenvíes ni prepares otra.'));}finally{send.disabled=false;}};view.d.append(send);
+      const send=node('button','Solicitar autorización de esta Nota de Crédito '+creditLetter);send.type='button';send.onclick=async()=>{if(send.disabled)return;send.disabled=true;try{if(!await fiscalConfirm('Autorizar Nota de Crédito '+creditLetter+' total','La nota fiscal no devuelve productos al stock, no registra reintegros y no modifica caja, cobros ni la venta. ¿Confirmás la autorización del total del original?'))return;const result=await processing('Generando Nota de Crédito '+creditLetter,()=>api.creditAuthorizeAndConfirm(body,viewToken));view.d.close();await showStatus(body,result,true,viewToken);}catch(_){view.d.append(node('p','No se pudo confirmar la nota de crédito. Consultá su estado; no reenvíes ni prepares otra.'));}finally{send.disabled=false;}};view.d.append(send);
     }
     if(!credit&&value.status==='AUTORIZADO_PROD_VERIFICADO'&&[1,6,11].includes(value.receipt?.kind)){
       const cap=await refresh(viewToken);if(cap.credit_c_enabled===true&&(cap.credit_document_types||[13]).includes(({1:3,6:8,11:13})[value.receipt.kind])){const note=node('button','Ver / preparar Nota de Crédito '+({1:'A',6:'B',11:'C'})[value.receipt.kind]+' total');note.type='button';note.onclick=async()=>{note.disabled=true;try{const state=await api.creditStatus(body,viewToken);if(state.status!=='NO_DISPONIBLE'){view.d.close();return showStatus(body,state,true,viewToken);}const form=dialog('Preparar Nota de Crédito '+({1:'A',6:'B',11:'C'})[value.receipt.kind]+' total');view.d.close();form.d.append(node('p','Original: '+String(value.receipt.point).padStart(5,'0')+'-'+String(value.receipt.number).padStart(8,'0')+' · '+value.receipt.date),node('p','Sólo por una anulación fiscal legítima. El servidor toma el total y los datos del original verificado. Esto no registra una devolución comercial ni un reintegro.'));
