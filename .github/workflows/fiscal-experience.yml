@@ -21,6 +21,6 @@ jobs:
       - name: Targeted client and recovery checks (synthetic HTTP only)
         shell: bash
         run: |
-          for file in tests/arca-guided-tax.test.cjs tests/arca-ui-integration.test.cjs tests/arca-onboarding-readiness.test.cjs tests/arca-enrollment.test.cjs tests/arca-daily.test.cjs tests/arca-credit-c.test.cjs tests/arca-completion.test.cjs tests/optional-receipts.test.cjs tests/arca-recovery.test.cjs; do
+          for file in tests/arca.test.cjs tests/arca-guided-tax.test.cjs tests/arca-ui-integration.test.cjs tests/arca-onboarding-readiness.test.cjs tests/arca-enrollment.test.cjs tests/arca-daily.test.cjs tests/arca-credit-c.test.cjs tests/arca-completion.test.cjs tests/optional-receipts.test.cjs tests/arca-recovery.test.cjs; do
             node "$file" || exit 1
           done

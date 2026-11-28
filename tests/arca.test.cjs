@@ -18,7 +18,7 @@ test('concurrent clicks share preparation, manual retry reuses backend operation
 });
 test('timeout never retries or calls reserve, emit or commercial RPC',async()=>{
  let count=0;const service=api((url,o)=>new Promise((resolve,reject)=>{count++;o.signal.addEventListener('abort',()=>reject(Object.assign(new Error(),{name:'AbortError'})));}),{timeoutMs:5});
- await assert.rejects(service.prepare({saleRef:'SALE'}),/No se reenvió/);assert.equal(count,1);
+ await assert.rejects(service.prepare({saleRef:'SALE'}),/no se reenvió/i);assert.equal(count,1);
 });
 test('forged authorization, arbitrary type, malformed intent and rejection stay blocked',async()=>{
  for(const value of [{...prepared,can_send:true},{...prepared,runtime_enabled:true},{...prepared,document_type:3},{...prepared,operation:'NOT_UUID'},{...prepared,status:'AUTORIZADO'}])await assert.rejects(api(async()=>ok(value)).prepare({saleRef:'SALE'}));
@@ -34,7 +34,7 @@ function salesContext({refreshFails=false,confirmFails=false,fiscal=true}={}){
  let confirms=0,inserts=0,details=0,stock=0,cash=0,fiscalCalls=0;const messages=[];const nodes={venConfirmar:{isConnected:true},venModal:{innerHTML:''}};
  const context={console,window:{VICORA_ARCA_UI_HABILITADA:fiscal,vicoraArcaIniciarEmision:fiscal?async body=>{fiscalCalls++;assert.deepEqual(JSON.parse(JSON.stringify(body)),{saleRef:'SALE'});return prepared;}:undefined},document:{getElementById:id=>nodes[id]||null,addEventListener:()=>{}},setTimeout,clearTimeout};
  vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../ventas.js'),'utf8'),context);
- Object.assign(context,{$:id=>nodes[id]||null,perfil:{id_negocio:'SERVER_SOURCE_HINT',id_usuario:'USER'},vicoraBloquearEdicion:()=>false,venAcceso:async()=>{},vicoraExigirSuscripcionVigente:async()=>{},confirmarVicora:async()=>{await new Promise(r=>setTimeout(r,5));return true;},venCerrar:()=>{},venToast:(...args)=>messages.push(args),venCargar:async()=>{if(refreshFails)throw new Error('VIEW_UNAVAILABLE');},venElegirComprobante:()=>{},venFechaISO:()=> '2026-11-16',venId:()=> 'SALE',db:{from(table){return {insert(){if(table==='ventas'){inserts++;return {select:()=>({single:async()=>({data:{id_venta:'SALE'}})})};}details++;return Promise.resolve({error:null});}};},async rpc(name){assert.equal(name,'confirmar_venta');confirms++;if(confirmFails)return {error:new Error('DECLINED')};stock++;cash++;return {data:{ok:true,total:100,saldo_pendiente:0}};}}});
+ Object.assign(context,{$:id=>nodes[id]||null,perfil:{id_negocio:'SERVER_SOURCE_HINT',id_usuario:'USER'},vicoraBloquearEdicion:()=>false,venAcceso:async()=>{},vicoraExigirSuscripcionVigente:async()=>{},confirmarVicora:async()=>{await new Promise(r=>setTimeout(r,5));return true;},venCerrar:()=>{},venToast:(...args)=>messages.push(args),venCargar:async()=>{if(refreshFails)throw new Error('VIEW_UNAVAILABLE');},venElegirComprobante:()=>{},venFechaISO:()=> '2026-11-16',venId:()=> 'SALE',db:{from(table){if(table==='cajas'){const q={select:()=>q,eq:()=>q,limit:async()=>({data:[{id_caja:'SYNTHETIC_OPEN_CASH'}],error:null})};return q;}return {insert(){if(table==='ventas'){inserts++;return {select:()=>({single:async()=>({data:{id_venta:'SALE'}})})};}details++;return Promise.resolve({error:null});}};},async rpc(name){assert.equal(name,'confirmar_venta');confirms++;if(confirmFails)return {error:new Error('DECLINED')};stock++;cash++;return {data:{ok:true,total:100,saldo_pendiente:0}};}}});
  vm.runInContext("ventasUI.carrito=[{id:'P',cantidad:1,precio:100,stock:5}];ventasUI.modalidad='CONTADO';ventasUI.cliente=null;ventasUI.descuento=0;ventasUI.anticipo=0;ventasUI.medio='EFECTIVO';ventasUI.clientes=[];",context);
  return {context,messages,counts:()=>({confirms,inserts,details,stock,cash,fiscalCalls})};
 }
@@ -54,7 +54,8 @@ test('UI default off, memory-only password reauth, no fiscal credential or print
  const code=fs.readFileSync(require.resolve('../arca.js'),'utf8');const html=fs.readFileSync(require.resolve('../index.html'),'utf8');
  assert.ok(code.includes('root.VICORA_ARCA_UI_HABILITADA=false'));assert.ok(code.includes("password.value=''"));assert.ok(code.includes('signInWithPassword'));
  assert.ok(html.includes('persistSession:false,autoRefreshToken:false,detectSessionInUrl:false'));
- assert.ok(!code.includes('localStorage'));assert.ok(!code.includes('db.rpc'));assert.ok(!code.includes('/emit'));assert.ok(!code.includes('/reserve'));
+ // Only the scoped paper-format preference is persisted; never authentication.
+ assert.equal((code.match(/localStorage\.setItem\(/g)||[]).length,1);assert.ok(code.includes("const preferenceKey='vicora.fiscal.print.'+business"));assert.ok(code.includes('localStorage.setItem(preferenceKey,preference.value)'));assert.ok(code.includes("['A4','80mm'].includes(saved)"));assert.ok(!code.includes('db.rpc'));assert.ok(!code.includes('/emit'));assert.ok(!code.includes('/reserve'));
  assert.ok(code.includes('No hay CAE verificado'));assert.ok(code.includes("role==='ADMINISTRADOR'"));
  // Verifica el rol real de public.usuarios en VICORA Comercial.
  const button={hidden:true};let actualRole='ADMINISTRADOR';
