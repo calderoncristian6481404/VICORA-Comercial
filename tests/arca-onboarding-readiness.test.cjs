@@ -32,7 +32,7 @@ test('local format review never validates actual ARCA authorization or stores se
  const s=setup();await s.browser.vicoraArcaInstalar({db:s.db,role:s.role});s.button.onclick();
  const d=s.events.dialogs[0],check=button(d,'Revisar datos ingresados');
  check.onclick();assert.ok(text(d).includes('Faltan datos'));
- input(d,'issuer').value='20999999990';input(d,'point').value='1';input(d,'condition').value='MONOTRIBUTO';input(d,'representation').value='PROPIA';input(d,'businessName').value='Comercio de prueba';
+ input(d,'issuer').value='20999999990';input(d,'point').value='1';input(d,'condition').value='MONOTRIBUTO';input(d,'representation').value='DELEGADA';input(d,'businessName').value='Comercio de prueba';
  check.onclick();assert.ok(text(d).includes('No verifica autorización ARCA'));
  assert.equal(s.events.calls,0);assert.equal(s.browser.VICORA_ARCA_UI_HABILITADA,false);
 });
@@ -60,8 +60,8 @@ test('production config is limited to the selected pilot and scripts share updat
  const page=fs.readFileSync(require.resolve('../index.html'),'utf8');
  const context={window:{}};vm.runInNewContext(cfg,context);
  const config=context.window.VICORA_ARCA_CONFIG;
- assert.equal(config.enabled,true);assert.equal(config.showSetup,true);assert.equal(new URL(config.apiOrigin).protocol,'https:');assert.equal(config.pilotBusiness,'NEG-1DF6A0578814464E8D855907BFC2DD7F');
- assert.ok(page.includes('arca.js?v=20261126-vitalia-pilot-v1'));
+ assert.equal(config.enabled,true);assert.equal(config.showSetup,true);assert.equal(new URL(config.apiOrigin).protocol,'https:');assert.match(config.pilotBusiness,/^NEG-[A-F0-9]{32}$/);
+ assert.ok(page.includes('arca.js?v=20261126-daily-candidate-v1'));
  assert.ok(page.includes('arca.config.js?v=20261126-vitalia-pilot-v1'));
  assert.ok(!code.includes('localStorage'));
  assert.ok(!code.includes('/v1/fiscal/emit'));
@@ -100,7 +100,7 @@ test('request may be submitted only with all fiscal fields and explicit responsi
  await s.browser.vicoraArcaInstalar({db:s.db,role:'ADMINISTRADOR'});s.button.onclick();
  const d=s.events.dialogs[0],send=button(d,'Enviar solicitud de habilitación');
  await send.onclick();assert.equal(writes.length,0);assert.ok(text(d).includes('Para enviar'));
- for(const [k,v] of Object.entries({issuer:'20123456789',condition:'MONOTRIBUTO',point:'5',representation:'PROPIA',businessName:'Tienda',taxAddress:'Calle 12',grossIncome:'Exento',activityStart:'2024-03-11'}))
+ for(const [k,v] of Object.entries({issuer:'20123456789',condition:'MONOTRIBUTO',point:'5',representation:'DELEGADA',businessName:'Tienda',taxAddress:'Calle 12',grossIncome:'Exento',activityStart:'2024-03-11'}))
    input(d,k).value=v;
  await send.onclick();assert.equal(writes.length,0);assert.ok(text(d).includes('declaración del responsable'));
  input(d,'declaraResponsabilidad').checked=true;
@@ -112,7 +112,7 @@ test('request may be submitted only with all fiscal fields and explicit responsi
 });
 test('saved request can be loaded only after authenticated administrator membership check',async()=>{
  const s=setup();
- const records={cuit_emisor:'20123456789',condicion_iva:'MONOTRIBUTO',punto_venta:5,representacion:'PROPIA',
+ const records={cuit_emisor:'20123456789',condicion_iva:'MONOTRIBUTO',punto_venta:5,representacion:'DELEGADA',
   razon_social:'Tienda',domicilio_fiscal:'Calle 12',ingresos_brutos:'Exento',inicio_actividades:'2024-03-11',
   declara_responsabilidad:true,estado:'SOLICITADA'};
  s.db.auth.getUser=async()=>({data:{user:{id:'USER-3'}},error:null});
@@ -136,8 +136,8 @@ test('failed membership checks cannot save any onboarding details',async()=>{
  assert.deepEqual(actions,['usuarios']);assert.ok(text(s.events.dialogs[0]).includes('No se pudo guardar'));
 });
 
-test('pilot checks actual membership before any fiscal connection',async()=>{
- for(const [role,business,expected] of [['ADMINISTRADOR','PILOT',1],['ADMINISTRADOR','OTHER',0],['VENDEDOR','PILOT',0]]){
+test('authenticated membership precedes capability lookup; unavailable capabilities never enable fiscal UI',async()=>{
+ for(const [role,business,expected] of [['ADMINISTRADOR','PILOT',1],['ADMINISTRADOR','OTHER',1],['VENDEDOR','PILOT',1]]){
   const s=setup({enabled:true,apiOrigin:'https://fiscal.invalid',role});s.browser.VICORA_ARCA_CONFIG.pilotBusiness='PILOT';
   s.db.auth.getUser=async()=>({data:{user:{id:'SYNTHETIC'}},error:null});
   s.db.auth.getSession=async()=>({data:{session:{access_token:'SYNTHETIC'}}});

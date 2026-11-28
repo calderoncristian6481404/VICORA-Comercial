@@ -3,7 +3,7 @@ const {test}=require('node:test');const assert=require('node:assert/strict');con
 const {client}=require('../arca.js');
 const operation='00000000-0000-4000-8000-000000000001';
 const prepared={status:'PREPARADO_NO_EMITIDO',operation,document_type:11,can_send:false,runtime_enabled:false};
-const db={auth:{getSession:async()=>({data:{session:{access_token:'SYNTHETIC_SESSION'}}})}};
+const db={auth:{getSession:async()=>({data:{session:{access_token:'SYNTHETIC_SESSION'}}}),getUser:async()=>({data:{user:{id:'SYNTHETIC_USER'}}})},from:()=>({select:()=>({eq:()=>({limit:async()=>({data:[{id_negocio:'SYNTHETIC_BUSINESS',rol:'ADMINISTRADOR',estado:'ACTIVO'}]})})})})};
 function api(fetchImpl,extra={}){return client({db,apiOrigin:'https://fiscal.invalid',fetchImpl,...extra});}
 function ok(value=prepared){return {ok:true,json:async()=>value};}
 test('one authenticated request, saleRef only, no browser company or fiscal proof',async()=>{
@@ -57,13 +57,14 @@ test('UI default off, memory-only password reauth, no fiscal credential or print
  assert.ok(!code.includes('localStorage'));assert.ok(!code.includes('db.rpc'));assert.ok(!code.includes('/emit'));assert.ok(!code.includes('/reserve'));
  assert.ok(code.includes('No hay CAE verificado'));assert.ok(code.includes("role==='ADMINISTRADOR'"));
  // Verifica el rol real de public.usuarios en VICORA Comercial.
- const button={hidden:true};
+ const button={hidden:true};let actualRole='ADMINISTRADOR';
+ const memberDB={...db,from:()=>({select:()=>({eq:()=>({limit:async()=>({data:[{id_negocio:'SYNTHETIC_BUSINESS',rol:actualRole,estado:'ACTIVO'}]})})})})};
  const browser={VICORA_ARCA_CONFIG:{enabled:true,apiOrigin:'https://fiscal.invalid'},fetch:async()=>ok({preparation_enabled:false,configuration_enabled:true,document_types:[],can_send:false,runtime_enabled:false})};
  const env={window:browser,document:{getElementById:id=>id==='vicoraArcaConfiguracion'?button:null},URL,AbortController,setTimeout,clearTimeout};
  vm.createContext(env);vm.runInContext(code,env);
- await browser.vicoraArcaInstalar({db,role:'ADMINISTRADOR',createAuthClient:()=>({})});
+ await browser.vicoraArcaInstalar({db:memberDB,role:'ADMINISTRADOR',createAuthClient:()=>({})});
  assert.equal(button.hidden,false);
  assert.equal(typeof button.onclick,'function');
- await browser.vicoraArcaInstalar({db,role:'VENDEDOR',createAuthClient:()=>({})});
+ actualRole='VENDEDOR';await browser.vicoraArcaInstalar({db:memberDB,role:'VENDEDOR',createAuthClient:()=>({})});
  assert.equal(button.hidden,true);
 });
